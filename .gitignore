@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 *.env
 *.zip
+# Datos y credenciales locales (no subir)
+*.xlsx
+scratch/*
+!scratch/*.sql
