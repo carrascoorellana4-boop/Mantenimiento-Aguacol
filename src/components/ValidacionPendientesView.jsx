@@ -1,3 +1,4 @@
+import Icon from './Icon'
 import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -443,21 +444,21 @@ export default function ValidacionPendientesView({
             className={`validacion-tab-btn ${filterEstado === 'Pendiente' ? 'active' : ''}`}
             onClick={() => setFilterEstado('Pendiente')}
           >
-            ⏳ Pendientes ({countsByState.pendientes})
+            <Icon n="wait" /> Pendientes ({countsByState.pendientes})
           </button>
           <button
             type="button"
             className={`validacion-tab-btn ${filterEstado === 'Resuelto' ? 'active' : ''}`}
             onClick={() => setFilterEstado('Resuelto')}
           >
-            ✓ Resueltos ({countsByState.resueltos})
+            <Icon n="check" /> Resueltos ({countsByState.resueltos})
           </button>
           <button
             type="button"
             className={`validacion-tab-btn ${filterEstado === 'Ignorado' ? 'active' : ''}`}
             onClick={() => setFilterEstado('Ignorado')}
           >
-            🚫 Ignorados ({countsByState.ignorados})
+            <Icon n="ban" /> Ignorados ({countsByState.ignorados})
           </button>
           <button
             type="button"
@@ -605,7 +606,7 @@ export default function ValidacionPendientesView({
               {filteredList.length === 0 ? (
                 <tr>
                   <td colSpan={filterEstado === 'Pendiente' ? 9 : 8} className="text-center" style={{ padding: '3rem' }}>
-                    <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem' }}>✓</span>
+                    <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem' }}><Icon n="check" /></span>
                     <strong>No hay registros en esta vista</strong>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
                       {filterEstado === 'Pendiente'
@@ -693,9 +694,9 @@ export default function ValidacionPendientesView({
                       </td>
                       <td>
                         {isResolved ? (
-                          <span className="val-badge-confidence val-conf-resuelto">✓ Resuelto</span>
+                          <span className="val-badge-confidence val-conf-resuelto"><Icon n="check" /> Resuelto</span>
                         ) : isIgnored ? (
-                          <span className="val-badge-confidence val-conf-ignorado">🚫 Ignorado</span>
+                          <span className="val-badge-confidence val-conf-ignorado"><Icon n="ban" /> Ignorado</span>
                         ) : candidates.length > 0 ? (
                           <span className="val-badge-confidence val-conf-candidato">Candidatos</span>
                         ) : (
@@ -748,7 +749,7 @@ export default function ValidacionPendientesView({
                       <td className="text-center">
                         {isResolved ? (
                           <span className="val-status-done" title={item.resolved_at ? `Resuelto el ${new Date(item.resolved_at).toLocaleString('es-CL')}` : ''}>
-                            ✓ Incorporado
+                            <Icon n="check" /> Incorporado
                           </span>
                         ) : isIgnored ? (
                           <span className="val-status-ignored">Omitido</span>
@@ -794,7 +795,7 @@ export default function ValidacionPendientesView({
                 className="modal-close-btn"
                 onClick={() => !batchLoading && setIsBatchConfirmOpen(false)}
               >
-                ✕
+                <Icon n="x" />
               </button>
             </div>
             <div className="modal-body">
@@ -847,7 +848,7 @@ export default function ValidacionPendientesView({
                 className="modal-close-btn"
                 onClick={() => !ignoreLoading && setIgnoreModalItem(null)}
               >
-                ✕
+                <Icon n="x" />
               </button>
             </div>
             <div className="modal-body">

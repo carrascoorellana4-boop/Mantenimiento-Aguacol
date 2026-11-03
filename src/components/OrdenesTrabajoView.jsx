@@ -1,3 +1,4 @@
+import Icon from './Icon'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { TECNICOS_BASE } from '../config/tecnicos'
 import { parseTecnicos } from '../lib/tecnicos'
@@ -70,6 +71,8 @@ export default function OrdenesTrabajoView({
   initialLoading = false,
   onNavigateToDashboard = () => {}
 }) {
+  // Solo el administrador puede crear o cambiar OT (la base lo exige igual).
+  const readOnly = session?.user?.role !== 'mant_admin'
   // Pestaña activa en vista móvil
   const [mobileActiveTab, setMobileActiveTab] = useState('Pendiente')
   const touchStartXRef = useRef(null)
@@ -349,6 +352,7 @@ export default function OrdenesTrabajoView({
 
   // Punto de entrada unificado para cualquier solicitud de cambio de estado
   const handleInitiateStatusChange = (ot, targetStatus, source = 'kanban') => {
+    if (readOnly) return
     if (!ot || !targetStatus) return
     if (ot.estado === targetStatus) return
 
@@ -462,6 +466,7 @@ export default function OrdenesTrabajoView({
 
   // Guardar datos o finalizar desde la Ficha Individual
   const handleSaveFichaChanges = async (e, forceFinalizar = false) => {
+    if (readOnly) { if (e && e.preventDefault) e.preventDefault(); return }
     if (e) e.preventDefault()
     if (!selectedOt || fichaSaving) return
 
@@ -557,6 +562,7 @@ export default function OrdenesTrabajoView({
 
   // Manejadores de Drag & Drop
   const handleDragStart = (e, ot) => {
+    if (readOnly) { e.preventDefault(); return }
     setDraggedOtId(ot.id)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', ot.id)
@@ -641,7 +647,7 @@ export default function OrdenesTrabajoView({
         className={`ot-kanban-card ${meta.cardClass} ${isDragging ? 'is-dragging' : ''} ${
           isUpdatingCard ? 'is-updating-card' : ''
         }`}
-        draggable={!isUpdatingCard}
+        draggable={!isUpdatingCard && !readOnly}
         onDragStart={(e) => handleDragStart(e, ot)}
         onDragEnd={handleDragEnd}
         onClick={() => setSelectedOtId(ot.id)}
@@ -770,7 +776,7 @@ export default function OrdenesTrabajoView({
           >
             Ver Dashboard
           </button>
-          <button
+          {!readOnly && (<button
             type="button"
             className="btn-primary ot-btn-header-new"
             data-testid="btn-nueva-ot"
@@ -780,7 +786,7 @@ export default function OrdenesTrabajoView({
             }}
           >
             + Nueva OT
-          </button>
+          </button>)}
         </div>
       </header>
 
@@ -798,7 +804,7 @@ export default function OrdenesTrabajoView({
             onClick={() => setToastMessage(null)}
             aria-label="Cerrar aviso"
           >
-            ✕
+            <Icon n="x" />
           </button>
         </div>
       )}
@@ -1067,7 +1073,7 @@ export default function OrdenesTrabajoView({
                       data-testid="btn-cerrar-ficha"
                       onClick={() => setSelectedOtId(null)}
                     >
-                      ✕
+                      <Icon n="x" />
                     </button>
                   </div>
 
@@ -1192,7 +1198,7 @@ export default function OrdenesTrabajoView({
                         role="alert"
                         style={{ marginBottom: '0.85rem' }}
                       >
-                        <span>⚠️</span>
+                        <span><Icon n="warn" /></span>
                         <span>{fichaValidationError}</span>
                       </div>
                     )}
@@ -1287,7 +1293,7 @@ export default function OrdenesTrabajoView({
                                     setFichaTecnico(toggleTecnicoInString(fichaTecnico, t.nombre))
                                   }
                                 >
-                                  {active ? '✓ ' : '+ '}
+                                  {active ? <Icon n="check" /> : '+ '}
                                   {t.nombre}
                                 </button>
                               )
@@ -1462,7 +1468,7 @@ export default function OrdenesTrabajoView({
                       className="modal-close-btn"
                       onClick={() => !finalizarSubmitting && setFinalizarModalOt(null)}
                     >
-                      ✕
+                      <Icon n="x" />
                     </button>
                   </div>
 
@@ -1494,7 +1500,7 @@ export default function OrdenesTrabajoView({
                           role="alert"
                           style={{ marginBottom: '0.85rem' }}
                         >
-                          <span>⚠️</span>
+                          <span><Icon n="warn" /></span>
                           <span>{finalizarError}</span>
                         </div>
                       )}
@@ -1564,7 +1570,7 @@ export default function OrdenesTrabajoView({
                                   )
                                 }
                               >
-                                {active ? '✓ ' : '+ '}
+                                {active ? <Icon n="check" /> : '+ '}
                                 {t.nombre}
                               </button>
                             )
@@ -1622,7 +1628,7 @@ export default function OrdenesTrabajoView({
                 className="modal-close-btn"
                 onClick={() => setConfirmTransitionModal(null)}
               >
-                ✕
+                <Icon n="x" />
               </button>
             </div>
             <div className="modal-body">
@@ -1688,7 +1694,7 @@ export default function OrdenesTrabajoView({
                 className="modal-close-btn"
                 onClick={() => !nuevaOtSubmitting && setIsNuevaOtModalOpen(false)}
               >
-                ✕
+                <Icon n="x" />
               </button>
             </div>
 
@@ -1696,7 +1702,7 @@ export default function OrdenesTrabajoView({
               <div className="modal-body">
                 {nuevaOtError && (
                   <div className="alert-error" role="alert" style={{ marginBottom: '0.85rem' }}>
-                    <span>⚠️</span>
+                    <span><Icon n="warn" /></span>
                     <span>{nuevaOtError}</span>
                   </div>
                 )}
@@ -1819,7 +1825,7 @@ export default function OrdenesTrabajoView({
                               }))
                             }
                           >
-                            {active ? '✓ ' : '+ '}
+                            {active ? <Icon n="check" /> : '+ '}
                             {t.nombre}
                           </button>
                         )

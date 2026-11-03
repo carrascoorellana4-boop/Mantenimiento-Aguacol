@@ -9,6 +9,10 @@ import ValidacionPendientesView from './components/ValidacionPendientesView'
 import OrdenesTrabajoView from './components/OrdenesTrabajoView'
 import { fetchOrdenesTrabajo, subscribeToOrdenesTrabajoRealtime } from './services/ordenesTrabajoService'
 import './App.css'
+import Icon from './components/Icon'
+import LoginView from './components/LoginView'
+import UpdateBanner from './components/UpdateBanner'
+import UsuariosView from './components/UsuariosView'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
@@ -321,6 +325,8 @@ function App() {
   
   // Estado de Autenticación
   const [session, setSession] = useState(null)
+  // Rol: administrador (puede escribir y gestionar usuarios) o visualizador (solo lectura). Lo hace cumplir la base; esto solo ordena la pantalla.
+  const isAdmin = session?.user?.role === 'mant_admin'
   
   // Estados para Login
   const [loginEmail, setLoginEmail] = useState('')
@@ -877,27 +883,40 @@ function App() {
     e.preventDefault()
     setLoginError('')
 
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError('Por favor ingrese su correo y contraseña.')
+    if (!loginEmail.trim() || !loginPassword) {
+      setLoginError('Ingresa tu usuario y tu contraseña.')
       return
     }
+    // Solo "admin" puede entrar sin escribir el correo; el resto usa su correo completo (nombre@aguacol.cl).
+    const usuario = loginEmail.trim().toLowerCase()
+    if (!usuario.includes('@') && usuario !== 'admin') {
+      setLoginError('Escribe tu correo completo: nombre@aguacol.cl.')
+      return
+    }
+    const correo = usuario.includes('@') ? usuario : `${usuario}@aguacol.cl`
 
     setLoginLoading(true)
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.trim(),
+        email: correo,
         password: loginPassword
       })
 
       if (error) {
-        setLoginError(`Credenciales incorrectas o error de acceso: ${error.message}`)
+        setLoginError(
+          error.status === 429
+            ? 'Demasiados intentos. Espera un momento e inténtalo de nuevo.'
+            : error.status >= 500 || /fetch|network/i.test(error.message)
+              ? 'No se pudo conectar con el servidor. Inténtalo de nuevo en unos segundos.'
+              : 'Usuario o contraseña incorrectos.'
+        )
       } else {
         setLoginEmail('')
         setLoginPassword('')
         setActiveView('home')
       }
     } catch (err) {
-      setLoginError(`Ocurrió un error al iniciar sesión: ${err.message || 'Error de red'}`)
+      setLoginError('No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.')
     } finally {
       setLoginLoading(false)
     }
@@ -2135,7 +2154,7 @@ function App() {
           } else if (value === 'nuevo_padre') {
             updated.estado = 'Aprobado como padre'
             const parentName = updated.propuestoNombrePadre || item.nombreOriginal
-            updated.equipoPadreAsignado = `🏛️ ${parentName} (Principal)`
+            updated.equipoPadreAsignado = `${parentName} (Principal)`
             updated.equipoHijoAsignado = '-'
             updated.equipoAsignadoId = ''
           } else if (value === 'nuevo_hijo') {
@@ -2165,7 +2184,7 @@ function App() {
           }
         } else if (field === 'propuestoNombrePadre') {
           if (updated.accion === 'nuevo_padre') {
-            updated.equipoPadreAsignado = `🏛️ ${value || item.nombreOriginal} (Principal)`
+            updated.equipoPadreAsignado = `${value || item.nombreOriginal} (Principal)`
           }
         } else if (field === 'propuestoNombreHijo') {
           if (updated.accion === 'nuevo_hijo') {
@@ -2679,11 +2698,24 @@ function App() {
     setActiveView('arbol-activos')
   }
 
+  // Inicio de sesión a pantalla completa (sin menú), con su propia escena animada.
+  // Sin sesión no se ve nada del sistema: solo el inicio de sesión.
+  if (!session) {
+    return (
+      <LoginView
+        email={loginEmail} setEmail={setLoginEmail} password={loginPassword} setPassword={setLoginPassword}
+        loading={loginLoading} error={loginError} onSubmit={handleLoginSubmit}
+      />
+    )
+  }
+
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${isAdmin ? '' : 'modo-lectura'}`}>
+      <UpdateBanner />
       {/* Menú lateral */}
       <aside className="sidebar">
         <div className="sidebar-header">
+          <img src="/Mantenimiento.ico" alt="" className="sidebar-logo" />
           <h2 className="sidebar-title">Sistema de Mantenimiento</h2>
         </div>
         
@@ -2698,7 +2730,7 @@ function App() {
                   className={`nav-item ${activeView === 'home' ? 'active' : ''}`}
                   onClick={() => setActiveView('home')}
                 >
-                  <span className="nav-item-icon">🏠</span>
+                  <span className="nav-item-icon"><Icon n="home" /></span>
                   <span>Inicio</span>
                 </button>
               </li>
@@ -2708,7 +2740,7 @@ function App() {
                   className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
                   onClick={() => setActiveView('dashboard')}
                 >
-                  <span className="nav-item-icon">📊</span>
+                  <span className="nav-item-icon"><Icon n="chart" /></span>
                   <span>Dashboard</span>
                 </button>
               </li>
@@ -2725,7 +2757,7 @@ function App() {
                   className={`nav-item ${activeView === 'ordenes-trabajo' ? 'active' : ''}`}
                   onClick={() => setActiveView('ordenes-trabajo')}
                 >
-                  <span className="nav-item-icon">📋</span>
+                  <span className="nav-item-icon"><Icon n="list" /></span>
                   <span>Órdenes de Trabajo</span>
                 </button>
               </li>
@@ -2739,7 +2771,7 @@ function App() {
                     setActiveView('bitacora')
                   }}
                 >
-                  <span className="nav-item-icon">📓</span>
+                  <span className="nav-item-icon"><Icon n="book" /></span>
                   <span>Bitácora</span>
                 </button>
               </li>
@@ -2749,7 +2781,7 @@ function App() {
                   className={`nav-item ${activeView === 'arbol-activos' ? 'active' : ''}`}
                   onClick={() => setActiveView('arbol-activos')}
                 >
-                  <span className="nav-item-icon">🌲</span>
+                  <span className="nav-item-icon"><Icon n="tree" /></span>
                   <span>Árbol de Activos</span>
                 </button>
               </li>
@@ -2766,7 +2798,7 @@ function App() {
                   className={`nav-item ${activeView === 'dashboard-inventario' ? 'active' : ''}`}
                   onClick={() => setActiveView('dashboard-inventario')}
                 >
-                  <span className="nav-item-icon">📦</span>
+                  <span className="nav-item-icon"><Icon n="box" /></span>
                   <span>Inventario General</span>
                 </button>
               </li>
@@ -2776,11 +2808,11 @@ function App() {
                   className={`nav-item ${activeView === 'repuestos' ? 'active' : ''}`}
                   onClick={handleCancel}
                 >
-                  <span className="nav-item-icon">📦</span>
+                  <span className="nav-item-icon"><Icon n="box" /></span>
                   <span>Repuestos</span>
                 </button>
               </li>
-              <li>
+              {isAdmin && (<li>
                 <button
                   type="button"
                   className={`nav-item ${activeView === 'nuevo-repuesto' ? 'active' : ''}`}
@@ -2798,11 +2830,11 @@ function App() {
                     }
                   }}
                 >
-                  <span className="nav-item-icon">➕</span>
+                  <span className="nav-item-icon"><Icon n="plus" /></span>
                   <span>Nuevo Repuesto</span>
                 </button>
-              </li>
-              <li>
+              </li>)}
+              {isAdmin && (<li>
                 <button
                   type="button"
                   className={`nav-item ${activeView === 'retiro' ? 'active' : ''}`}
@@ -2818,10 +2850,10 @@ function App() {
                     }
                   }}
                 >
-                  <span className="nav-item-icon">📤</span>
+                  <span className="nav-item-icon"><Icon n="out" /></span>
                   <span>Retiro de Repuestos</span>
                 </button>
-              </li>
+              </li>)}
             </ul>
           </div>
 
@@ -2835,12 +2867,25 @@ function App() {
                   className={`nav-item ${activeView === 'compras' ? 'active' : ''}`}
                   onClick={() => setActiveView('compras')}
                 >
-                  <span className="nav-item-icon">🛒</span>
+                  <span className="nav-item-icon"><Icon n="cart" /></span>
                   <span>Compras</span>
                 </button>
               </li>
             </ul>
           </div>
+        {isAdmin && (
+            <div className="nav-section">
+              <h3 className="nav-section-title">Administración</h3>
+              <ul className="nav-list">
+                <li>
+                  <button type="button" className={`nav-item ${activeView === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveView('usuarios')}>
+                    <span className="nav-item-icon"><Icon n="user" /></span>
+                    <span>Usuarios y roles</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          )}
         </nav>
 
         {/* Footer del Menú con Estado de Sesión */}
@@ -2848,7 +2893,7 @@ function App() {
           {session ? (
             <>
               <div className="user-badge">
-                <span className="user-role">Administrador</span>
+                <span className="user-role">{isAdmin ? 'Administrador' : 'Visualizador'}</span>
                 <span className="user-email" title={session.user.email}>
                   {session.user.email}
                 </span>
@@ -2906,7 +2951,7 @@ function App() {
                 >
                   <div className="home-card-header">
                     <div className="home-card-icon-wrap icon-ot">
-                      <span className="home-card-icon">🛠️</span>
+                      <span className="home-card-icon"><Icon n="tools" /></span>
                     </div>
                     <span className="home-card-badge badge-dev">En desarrollo</span>
                   </div>
@@ -2933,7 +2978,7 @@ function App() {
                 >
                   <div className="home-card-header">
                     <div className="home-card-icon-wrap icon-activos">
-                      <span className="home-card-icon">🌲</span>
+                      <span className="home-card-icon"><Icon n="tree" /></span>
                     </div>
                     <span className="home-card-badge badge-preview">Estructura</span>
                   </div>
@@ -2960,7 +3005,7 @@ function App() {
                 >
                   <div className="home-card-header">
                     <div className="home-card-icon-wrap icon-inventario">
-                      <span className="home-card-icon">📦</span>
+                      <span className="home-card-icon"><Icon n="box" /></span>
                     </div>
                     <span className="home-card-badge badge-active">Módulo Activo</span>
                   </div>
@@ -2987,7 +3032,7 @@ function App() {
                 >
                   <div className="home-card-header">
                     <div className="home-card-icon-wrap icon-compras">
-                      <span className="home-card-icon">🛒</span>
+                      <span className="home-card-icon"><Icon n="cart" /></span>
                     </div>
                     <span className="home-card-badge badge-dev">En desarrollo</span>
                   </div>
@@ -3051,7 +3096,7 @@ function App() {
             <section className="content-body">
               <div className="placeholder-container">
                 <div className="placeholder-hero-card">
-                  <div className="placeholder-icon-badge icon-ot">🛠️</div>
+                  <div className="placeholder-icon-badge icon-ot"><Icon n="tools" /></div>
                   <span className="placeholder-status-tag">Módulo en desarrollo</span>
                   <h2 className="placeholder-title">Órdenes de Trabajo</h2>
                   <p className="placeholder-description">
@@ -3060,22 +3105,22 @@ function App() {
 
                   <div className="placeholder-feature-grid">
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">📋</div>
+                      <div className="feat-icon"><Icon n="list" /></div>
                       <h4>OTs Correctivas y Preventivas</h4>
                       <p>Emisión y asignación de trabajos con priorización por criticidad.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">⏱️</div>
+                      <div className="feat-icon"><Icon n="timer" /></div>
                       <h4>Tiempos e Intervención</h4>
                       <p>Control de MTTR, tiempos de respuesta y horas hombre dedicadas.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">🔩</div>
+                      <div className="feat-icon"><Icon n="cog" /></div>
                       <h4>Consumo de Repuestos</h4>
                       <p>Vincular repuestos utilizados directamente desde el inventario.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">✅</div>
+                      <div className="feat-icon"><Icon n="done" /></div>
                       <h4>Cierre y Conformidad</h4>
                       <p>Validación de trabajos terminados y registro en historial técnico.</p>
                     </div>
@@ -3127,7 +3172,7 @@ function App() {
                 {/* Banner de regla de negocio y arquitectura */}
                 <div className="activos-top-banner">
                   <div className="activos-top-banner-content">
-                    <span className="activos-top-banner-icon">🏛️</span>
+                    <span className="activos-top-banner-icon"><Icon n="parent" /></span>
                     <span>
                       <strong>{PLANTA_NOMBRE} — Base V1 Oficial:</strong> Estructura jerárquica (Área └── Grupo └── Activo └── Subactivo) y relaciones funcionales diferenciadas (refrigeración y equipos compartidos).
                     </span>
@@ -3143,7 +3188,7 @@ function App() {
                     <div className="tree-panel-header">
                       {/* Buscador superior */}
                       <div className="tree-search-wrapper">
-                        <span className="tree-search-icon">🔍</span>
+                        <span className="tree-search-icon"><Icon n="search" /></span>
                         <input
                           type="text"
                           className="tree-search-input"
@@ -3158,7 +3203,7 @@ function App() {
                             onClick={() => setTreeSearch('')}
                             title="Limpiar búsqueda"
                           >
-                            ✕
+                            <Icon n="x" />
                           </button>
                         )}
                       </div>
@@ -3219,9 +3264,9 @@ function App() {
                               >
                                 <div className="tree-area-info">
                                   <span className="tree-arrow">
-                                    {isAreaOpen ? '▼' : '▶'}
+                                    {isAreaOpen ? <Icon n="down" /> : <Icon n="right" />}
                                   </span>
-                                  <span>{area.icono}</span>
+                                  <span><Icon n={area.icono} /></span>
                                   <span className="tree-area-title">{area.nombre}</span>
                                 </div>
                                 <span className="tree-area-badge">
@@ -3244,7 +3289,7 @@ function App() {
                                         {isNewGroup && (
                                           <div className="tree-group-header">
                                             <span className="tree-group-tag">
-                                              {equipo.grupo.includes('Extrusión') ? '⚡' : '📁'} {equipo.grupo}
+                                              <Icon n={equipo.grupo.includes('Extrusión') ? 'zap' : 'folder'} /> {equipo.grupo}
                                             </span>
                                           </div>
                                         )}
@@ -3259,7 +3304,7 @@ function App() {
                                                 onClick={(e) => toggleEquipoExpand(equipo.id, e)}
                                                 title={isEquipoOpen ? 'Contraer sub-componentes' : 'Expandir sub-componentes'}
                                               >
-                                                {isEquipoOpen ? '▼' : '▶'}
+                                                {isEquipoOpen ? <Icon n="down" /> : <Icon n="right" />}
                                               </span>
                                             ) : (
                                               <span className="tree-arrow" style={{ opacity: 0.3 }}>•</span>
@@ -3301,7 +3346,7 @@ function App() {
                                                   onClick={() => setSelectedActivoId(hijo.id)}
                                                 >
                                                   <div className="tree-hijo-main">
-                                                    <span>⚙️</span>
+                                                    <span><Icon n="cog" /></span>
                                                     <span className="tree-hijo-name" title={hijo.nombre}>{hijo.nombre}</span>
                                                     <span className="tree-hijo-badge">Equipo hijo</span>
                                                   </div>
@@ -3336,7 +3381,7 @@ function App() {
                           <div className="ficha-title-wrap">
                             <div className="ficha-badges-row">
                               <span className={`ficha-tipo-badge ${selectedActivo.tipo === 'hijo' ? 'tipo-hijo' : 'tipo-padre'}`}>
-                                {selectedActivo.tipo === 'hijo' ? '⚙️ Equipo Hijo' : '🏛️ Equipo Padre'}
+                                {selectedActivo.tipo === 'hijo' ? <><Icon n="cog" /> Equipo Hijo</> : <><Icon n="parent" /> Equipo Padre</>}
                               </span>
                               <span className="ficha-estado-pill">
                                 <span className={`dot-indicator ${ESTADOS_ACTIVO[selectedActivo.estado?.toUpperCase()]?.dotClass || 'dot-operativo'}`}>
@@ -3365,7 +3410,7 @@ function App() {
                               onClick={() => handleVerBitacoraFromActivo(selectedActivo)}
                               title="Ver bitácora técnica e historial de intervenciones"
                             >
-                              <span>📓</span> Ver Bitácora
+                              <span><Icon n="book" /></span> Ver Bitácora
                             </button>
                           </div>
                           <div className="ficha-actions-right">
@@ -3375,7 +3420,7 @@ function App() {
                               disabled={true}
                               title="Próximamente: creación jerárquica de activos en fase posterior"
                             >
-                              <span>➕</span> + Nuevo activo <span className="btn-tag-soon">Próximamente</span>
+                              <span><Icon n="plus" /></span> + Nuevo activo <span className="btn-tag-soon">Próximamente</span>
                             </button>
                             <button
                               type="button"
@@ -3383,7 +3428,7 @@ function App() {
                               disabled={true}
                               title="Próximamente: edición técnica del activo"
                             >
-                              <span>✏️</span> Editar activo <span className="btn-tag-soon">Próximamente</span>
+                              <span><Icon n="edit" /></span> Editar activo <span className="btn-tag-soon">Próximamente</span>
                             </button>
                           </div>
                         </div>
@@ -3395,35 +3440,35 @@ function App() {
                             className={`ficha-tab-btn ${activoDetailTab === 'general' ? 'active' : ''}`}
                             onClick={() => setActivoDetailTab('general')}
                           >
-                            <span>📋</span> Información General
+                            <span><Icon n="list" /></span> Información General
                           </button>
                           <button
                             type="button"
                             className={`ficha-tab-btn ${activoDetailTab === 'historial' ? 'active' : ''}`}
                             onClick={() => setActivoDetailTab('historial')}
                           >
-                            <span>🕒</span> Historial de Mantenimiento
+                            <span><Icon n="clock" /></span> Historial de Mantenimiento
                           </button>
                           <button
                             type="button"
                             className={`ficha-tab-btn ${activoDetailTab === 'fallas' ? 'active' : ''}`}
                             onClick={() => setActivoDetailTab('fallas')}
                           >
-                            <span>⚠️</span> Historial de Fallas
+                            <span><Icon n="warn" /></span> Historial de Fallas
                           </button>
                           <button
                             type="button"
                             className={`ficha-tab-btn ${activoDetailTab === 'repuestos' ? 'active' : ''}`}
                             onClick={() => setActivoDetailTab('repuestos')}
                           >
-                            <span>📦</span> Repuestos Asociados
+                            <span><Icon n="box" /></span> Repuestos Asociados
                           </button>
                           <button
                             type="button"
                             className={`ficha-tab-btn ${activoDetailTab === 'documentacion' ? 'active' : ''}`}
                             onClick={() => setActivoDetailTab('documentacion')}
                           >
-                            <span>📄</span> Documentación
+                            <span><Icon n="doc" /></span> Documentación
                           </button>
                         </div>
 
@@ -3511,7 +3556,7 @@ function App() {
                                 <div className="ficha-formatos-card">
                                   <div className="ficha-formatos-header">
                                     <span className="ficha-formatos-title">
-                                      <span>📐</span> Especificación de Formatos y Moldes
+                                      <span><Icon n="ruler" /></span> Especificación de Formatos y Moldes
                                     </span>
                                     <span className="tree-badge-rule">Control de Producción</span>
                                   </div>
@@ -3530,7 +3575,7 @@ function App() {
                                         {selectedActivo.formatoActual ? (
                                           <span className="badge-formato-actual">{selectedActivo.formatoActual}</span>
                                         ) : (
-                                          <span className="badge-formato-pendiente">⚠️ No confirmado / Pendiente de registrar</span>
+                                          <span className="badge-formato-pendiente"><Icon n="warn" /> No confirmado / Pendiente de registrar</span>
                                         )}
                                       </div>
                                     )}
@@ -3546,7 +3591,7 @@ function App() {
                                               key={fmt}
                                               className={`chip-formato ${selectedActivo.formatoActual === fmt ? 'chip-formato-active' : ''}`}
                                             >
-                                              {fmt} {selectedActivo.formatoActual === fmt ? '✓ (En uso)' : ''}
+                                              {fmt} {selectedActivo.formatoActual === fmt ? '(En uso)' : ''}
                                             </span>
                                           ))}
                                         </div>
@@ -3556,7 +3601,7 @@ function App() {
 
                                   {selectedActivo.notasFormato && (
                                     <p className="ficha-formato-nota">
-                                      ℹ️ {selectedActivo.notasFormato}
+                                      ℹ {selectedActivo.notasFormato}
                                     </p>
                                   )}
                                 </div>
@@ -3567,7 +3612,7 @@ function App() {
                                 <div className="ficha-relacion-funcional-card">
                                   <div className="ficha-relacion-funcional-header">
                                     <span className="ficha-relacion-funcional-title">
-                                      <span>🔄</span> Relación Funcional y Servicios Compartidos
+                                      <span><Icon n="refresh" /></span> Relación Funcional y Servicios Compartidos
                                     </span>
                                     <span className="badge-relacion-funcional">Relación Funcional (No Jerárquica)</span>
                                   </div>
@@ -3577,7 +3622,7 @@ function App() {
 
                                   {selectedActivo.relacionesFuncionales.refrigeraA && (
                                     <div className="ficha-funcional-row">
-                                      <span className="ficha-funcional-label">❄️ Refrigera a los activos:</span>
+                                      <span className="ficha-funcional-label"><Icon n="snow" /> Refrigera a los activos:</span>
                                       <div className="ficha-funcional-chips">
                                         {selectedActivo.relacionesFuncionales.refrigeraA.map((eqNom) => (
                                           <span key={eqNom} className="chip-funcional-target">
@@ -3595,7 +3640,7 @@ function App() {
 
                                   {selectedActivo.relacionesFuncionales.refrigeradoPor && (
                                     <div className="ficha-funcional-row">
-                                      <span className="ficha-funcional-label">❄️ Circuito de refrigeración asignado:</span>
+                                      <span className="ficha-funcional-label"><Icon n="snow" /> Circuito de refrigeración asignado:</span>
                                       <div className="ficha-funcional-chips">
                                         {selectedActivo.relacionesFuncionales.refrigeradoPor.map((chillerNom) => (
                                           <span key={chillerNom} className="chip-funcional-chiller">
@@ -3608,7 +3653,7 @@ function App() {
 
                                   {selectedActivo.relacionesFuncionales.servicioA && (
                                     <div className="ficha-funcional-row">
-                                      <span className="ficha-funcional-label">🤝 Presta servicio compartido a:</span>
+                                      <span className="ficha-funcional-label"><Icon n="link" /> Presta servicio compartido a:</span>
                                       <div className="ficha-funcional-chips">
                                         {selectedActivo.relacionesFuncionales.servicioA.map((eqNom) => (
                                           <span key={eqNom} className="chip-funcional-target">
@@ -3626,7 +3671,7 @@ function App() {
 
                                   {selectedActivo.relacionesFuncionales.equiposCompartidos && (
                                     <div className="ficha-funcional-row">
-                                      <span className="ficha-funcional-label">🤝 Equipos compartidos físicamente:</span>
+                                      <span className="ficha-funcional-label"><Icon n="link" /> Equipos compartidos físicamente:</span>
                                       <div className="ficha-funcional-chips">
                                         {selectedActivo.relacionesFuncionales.equiposCompartidos.map((comp) => (
                                           <span key={comp.nombre} className="chip-funcional-shared" title={`Compartido con ${comp.con}`}>
@@ -3647,7 +3692,7 @@ function App() {
                                 <div className="ficha-relacion-card">
                                   <div className="ficha-relacion-header">
                                     <span className="ficha-relacion-title">
-                                      <span>🏛️</span> Relación Jerárquica Aprobada
+                                      <span><Icon n="parent" /></span> Relación Jerárquica Aprobada
                                     </span>
                                     <span className="tree-badge-rule">Estructura Aprobada</span>
                                   </div>
@@ -3668,7 +3713,7 @@ function App() {
                                     onClick={() => setSelectedActivoId(selectedActivo.padreId)}
                                     title="Ir a la ficha del equipo padre"
                                   >
-                                    <span>🏛️</span>
+                                    <span><Icon n="parent" /></span>
                                     <strong>Padre: {selectedActivo.padreNombre}</strong>
                                     <span className="ficha-relacion-action">Ver equipo padre →</span>
                                   </button>
@@ -3680,7 +3725,7 @@ function App() {
                                 <div className="ficha-relacion-card">
                                   <div className="ficha-relacion-header">
                                     <span className="ficha-relacion-title">
-                                      <span>⚙️</span> Equipos Hijos Aprobados ({selectedActivo.hijos.length})
+                                      <span><Icon n="cog" /></span> Equipos Hijos Aprobados ({selectedActivo.hijos.length})
                                     </span>
                                     <span className="tree-badge-rule">Estructura Aprobada</span>
                                   </div>
@@ -3703,7 +3748,7 @@ function App() {
                                         onClick={() => setSelectedActivoId(hijo.id)}
                                         title={`Ver ficha técnica de ${hijo.nombre}`}
                                       >
-                                        <span>⚙️</span>
+                                        <span><Icon n="cog" /></span>
                                         <strong>Hijo: {hijo.nombre}</strong>
                                         {hijo.codigo && (
                                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({hijo.codigo})</span>
@@ -3745,7 +3790,7 @@ function App() {
                                 </div>
                               ) : errorFichaMantenimiento ? (
                                 <div className="empty-state-callout" style={{ marginTop: '1rem', borderLeft: '4px solid #ef4444' }}>
-                                  <p className="empty-state-text" style={{ margin: 0, fontWeight: 500, color: '#dc2626' }}>
+                                  <p className="empty-state-text" style={{ margin: 0, fontWeight: 500, color: '#f87171' }}>
                                     {errorFichaMantenimiento}
                                   </p>
                                 </div>
@@ -3796,7 +3841,7 @@ function App() {
                                                 {item.es_falla && (
                                                   <div>
                                                     <span className="badge-tag-falla-subtle" title={item.tipo_falla || 'Falla'}>
-                                                      ⚠ Falla
+                                                      <Icon n="warn" /> Falla
                                                     </span>
                                                   </div>
                                                 )}
@@ -3860,7 +3905,7 @@ function App() {
                                   <span className="ficha-metric-lbl">Total de Fallas</span>
                                 </div>
                                 <div className="ficha-metric-card">
-                                  <span className="ficha-metric-val" style={{ color: '#2563eb', fontSize: '1.05rem' }}>
+                                  <span className="ficha-metric-val" style={{ color: '#60a5fa', fontSize: '1.05rem' }}>
                                     {activoFichaMetrics?.fecha_ultima_falla
                                       ? new Date(activoFichaMetrics.fecha_ultima_falla).toLocaleDateString('es-CL')
                                       : activoHistorialFallas.length > 0 && (activoHistorialFallas[0].fecha || activoHistorialFallas[0].fecha_hora)
@@ -3969,21 +4014,21 @@ function App() {
                               <div className="ficha-doc-list">
                                 <div className="ficha-doc-item">
                                   <div className="ficha-doc-name">
-                                    <span>📕</span>
+                                    <span><Icon n="manual" /></span>
                                     <span>Manual_Operacion_Mantenimiento_{selectedActivo.codigo || selectedActivo.nombre}.pdf</span>
                                   </div>
                                   <span className="ficha-doc-size">18.4 MB • PDF</span>
                                 </div>
                                 <div className="ficha-doc-item">
                                   <div className="ficha-doc-name">
-                                    <span>📐</span>
+                                    <span><Icon n="ruler" /></span>
                                     <span>Esquema_Tecnico_{selectedActivo.codigo || selectedActivo.nombre}.pdf</span>
                                   </div>
                                   <span className="ficha-doc-size">8.2 MB • PDF</span>
                                 </div>
                                 <div className="ficha-doc-item">
                                   <div className="ficha-doc-name">
-                                    <span>🛡️</span>
+                                    <span><Icon n="shield" /></span>
                                     <span>Certificado_Puesta_en_Marcha_Garantia.pdf</span>
                                   </div>
                                   <span className="ficha-doc-size">1.5 MB • PDF</span>
@@ -4028,7 +4073,7 @@ function App() {
             <section className="content-body">
               <div className="placeholder-container">
                 <div className="placeholder-hero-card">
-                  <div className="placeholder-icon-badge icon-compras">🛒</div>
+                  <div className="placeholder-icon-badge icon-compras"><Icon n="cart" /></div>
                   <span className="placeholder-status-tag">Módulo en desarrollo</span>
                   <h2 className="placeholder-title">Gestión de Compras y Proveedores</h2>
                   <p className="placeholder-description">
@@ -4037,22 +4082,22 @@ function App() {
 
                   <div className="placeholder-feature-grid">
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">📑</div>
+                      <div className="feat-icon"><Icon n="docs" /></div>
                       <h4>Solicitudes de Compra (SC)</h4>
                       <p>Generación de requerimientos cuando el inventario cae bajo el stock mínimo.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">🏷️</div>
+                      <div className="feat-icon"><Icon n="tag" /></div>
                       <h4>Cotizaciones y Proveedores</h4>
                       <p>Comparación de precios, tiempos de entrega y catálogo de proveedores evaluados.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">💳</div>
+                      <div className="feat-icon"><Icon n="card" /></div>
                       <h4>Órdenes de Compra (OC)</h4>
                       <p>Emisión formal de OCs y aprobación según umbrales de presupuesto.</p>
                     </div>
                     <div className="placeholder-feature-box">
-                      <div className="feat-icon">📦</div>
+                      <div className="feat-icon"><Icon n="box" /></div>
                       <h4>Recepción en Bodega</h4>
                       <p>Ingreso automático al inventario con actualización de stock valorizado.</p>
                     </div>
@@ -4120,7 +4165,7 @@ function App() {
 
               {dashboardError && (
                 <div className="alert-error" role="alert">
-                  <span>⚠</span>
+                  <span><Icon n="warn" /></span>
                   <span>{dashboardError}</span>
                 </div>
               )}
@@ -4132,7 +4177,7 @@ function App() {
                     <div className="kpi-card">
                       <div className="kpi-header">
                         <span className="kpi-title">Valor Total del Inventario</span>
-                        <span className="kpi-icon">💰</span>
+                        <span className="kpi-icon"><Icon n="money" /></span>
                       </div>
                       <div className="kpi-value">
                         {formatCLP(dashboardData?.valor_total_inventario)}
@@ -4145,7 +4190,7 @@ function App() {
                     <div className="kpi-card">
                       <div className="kpi-header">
                         <span className="kpi-title">Cantidad de Repuestos</span>
-                        <span className="kpi-icon">📦</span>
+                        <span className="kpi-icon"><Icon n="box" /></span>
                       </div>
                       <div className="kpi-value">
                         {dashboardData?.cantidad_repuestos ?? 0}
@@ -4158,7 +4203,7 @@ function App() {
                     <div className="kpi-card">
                       <div className="kpi-header">
                         <span className="kpi-title">Repuestos Bajo Mínimo</span>
-                        <span className="kpi-icon">⚠️</span>
+                        <span className="kpi-icon"><Icon n="warn" /></span>
                       </div>
                       <div className={`kpi-value ${(dashboardData?.repuestos_bajo_minimo || 0) > 0 ? 'text-warning' : ''}`}>
                         {dashboardData?.repuestos_bajo_minimo ?? 0}
@@ -4227,7 +4272,7 @@ function App() {
                 <p className="page-subtitle">Gestión del maestro de repuestos de mantenimiento.</p>
               </div>
               
-              {session && (
+              {isAdmin && (
                 <button
                   type="button"
                   className="btn-primary"
@@ -4255,7 +4300,7 @@ function App() {
 
               {listError && (
                 <div className="alert-error" role="alert">
-                  <span>⚠</span>
+                  <span><Icon n="warn" /></span>
                   <span>{listError}</span>
                 </div>
               )}
@@ -4333,7 +4378,7 @@ function App() {
         )}
 
         {/* VISTA 3: Retiro de Repuestos (Buscador con Autocompletado) */}
-        {activeView === 'retiro' && session && (
+        {activeView === 'retiro' && isAdmin && (
           <>
             <header className="content-header">
               <div className="header-info">
@@ -4350,7 +4395,7 @@ function App() {
                     {/* Mensaje de éxito */}
                     {retiroSuccess && (
                       <div className="alert-success" role="status">
-                        <span>✓</span>
+                        <span><Icon n="check" /></span>
                         <span>{retiroSuccess}</span>
                       </div>
                     )}
@@ -4358,7 +4403,7 @@ function App() {
                     {/* Mensaje de error de servidor */}
                     {retiroServerError && (
                       <div className="alert-error" role="alert">
-                        <span>⚠</span>
+                        <span><Icon n="warn" /></span>
                         <span>{retiroServerError}</span>
                       </div>
                     )}
@@ -4402,7 +4447,7 @@ function App() {
                                   onClick={handleClearSelection}
                                   title="Limpiar búsqueda"
                                 >
-                                  ✕
+                                  <Icon n="x" />
                                 </button>
                               )}
                             </div>
@@ -4543,6 +4588,8 @@ function App() {
           </>
         )}
 
+        {activeView === 'usuarios' && isAdmin && <UsuariosView session={session} />}
+
         {/* VISTA 4: Inicio de Sesión */}
         {activeView === 'login' && (
           <>
@@ -4559,7 +4606,7 @@ function App() {
                   <div className="form-content">
                     {loginError && (
                       <div className="alert-error" role="alert">
-                        <span>⚠</span>
+                        <span><Icon n="warn" /></span>
                         <span>{loginError}</span>
                       </div>
                     )}
@@ -4624,7 +4671,7 @@ function App() {
         )}
 
         {/* VISTA 5: Formulario Nuevo Repuesto */}
-        {activeView === 'nuevo-repuesto' && session && (
+        {activeView === 'nuevo-repuesto' && isAdmin && (
           <>
             <header className="content-header">
               <div className="header-info">
@@ -4641,7 +4688,7 @@ function App() {
                     {/* Mensaje de éxito */}
                     {successMessage && (
                       <div className="alert-success" role="status">
-                        <span>✓</span>
+                        <span><Icon n="check" /></span>
                         <span>{successMessage}</span>
                       </div>
                     )}
@@ -4649,7 +4696,7 @@ function App() {
                     {/* Mensaje de error de servidor */}
                     {serverError && (
                       <div className="alert-error" role="alert">
-                        <span>⚠</span>
+                        <span><Icon n="warn" /></span>
                         <span>{serverError}</span>
                       </div>
                     )}
@@ -4938,7 +4985,7 @@ function App() {
                       className="btn-primary"
                       disabled={loading || isSaved}
                     >
-                      {loading ? 'Guardando...' : isSaved ? 'Guardado ✓' : 'Guardar Repuesto'}
+                      {loading ? 'Guardando...' : isSaved ? 'Guardado' : 'Guardar Repuesto'}
                     </button>
                   </div>
                 </form>
@@ -4955,7 +5002,7 @@ function App() {
                 <p className="page-subtitle">Historial de intervenciones técnicas, reparaciones y fallas operacionales.</p>
               </div>
 
-              {session && (
+              {isAdmin && (
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <button
                     type="button"
@@ -4969,7 +5016,7 @@ function App() {
                       setIsImportModalOpen(true)
                     }}
                   >
-                    📊 Importar Excel
+                    <Icon n="chart" /> Importar Excel
                   </button>
                   <button
                     type="button"
@@ -4986,21 +5033,21 @@ function App() {
               {/* Mensajes de notificación */}
               {bitacoraSuccessMessage && (
                 <div className="alert-success" role="status">
-                  <span>✓</span>
+                  <span><Icon n="check" /></span>
                   <span>{bitacoraSuccessMessage}</span>
                   <button
                     type="button"
                     onClick={() => setBitacoraSuccessMessage('')}
                     style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 'bold' }}
                   >
-                    ✕
+                    <Icon n="x" />
                   </button>
                 </div>
               )}
 
               {bitacoraError && (
                 <div className="alert-error" role="alert">
-                  <span>⚠</span>
+                  <span><Icon n="warn" /></span>
                   <span>{bitacoraError}</span>
                 </div>
               )}
@@ -5032,9 +5079,9 @@ function App() {
                       className={`bitacora-subtab-btn ${bitacoraSubTab === 'registradas' ? 'active' : ''}`}
                       onClick={() => setBitacoraSubTab('registradas')}
                     >
-                      <span>📋</span> Intervenciones Registradas
+                      <span><Icon n="list" /></span> Intervenciones Registradas
                     </button>
-                    <button
+                    {isAdmin && (<button
                       type="button"
                       className={`bitacora-subtab-btn ${bitacoraSubTab === 'pendientes' ? 'active' : ''}`}
                       onClick={() => {
@@ -5042,13 +5089,13 @@ function App() {
                         fetchPendientesValidacion()
                       }}
                     >
-                      <span>⏳</span> Validar importaciones
+                      <span><Icon n="wait" /></span> Validar importaciones
                       {pendientesValidacionList.filter(p => (p.estado || 'Pendiente') === 'Pendiente').length > 0 && (
                         <span className="badge-pendientes-count">
                           {pendientesValidacionList.filter(p => (p.estado || 'Pendiente') === 'Pendiente').length}
                         </span>
                       )}
-                    </button>
+                    </button>)}
                   </div>
 
                   {bitacoraSubTab === 'registradas' && (
@@ -5057,7 +5104,7 @@ function App() {
                       <div className="filters-card">
                     <div className="filters-header">
                       <span className="filters-title">
-                        <span>🔍</span> Filtros y Búsqueda
+                        <span><Icon n="search" /></span> Filtros y Búsqueda
                       </span>
                       {hasActiveFilters && (
                         <button
@@ -5065,7 +5112,7 @@ function App() {
                           className="btn-reset-filters"
                           onClick={handleResetFilters}
                         >
-                          ✕ Limpiar filtros
+                          <Icon n="x" /> Limpiar filtros
                         </button>
                       )}
                     </div>
@@ -5289,7 +5336,7 @@ function App() {
                                   <td>
                                     {item.es_falla ? (
                                       <span className="badge badge-falla-si">
-                                        ⚠ Falla
+                                        <Icon n="warn" /> Falla
                                       </span>
                                     ) : (
                                       <span className="badge badge-falla-no">
@@ -5318,14 +5365,14 @@ function App() {
                                     )}
                                   </td>
                                   <td className="text-center">
-                                    <button
+                                    {isAdmin && (<button
                                       type="button"
                                       className="btn-action-edit"
                                       onClick={() => handleOpenEditarIntervencion(item)}
                                       title="Editar intervención"
                                     >
-                                      ✏ Editar
-                                    </button>
+                                      <Icon n="edit" /> Editar
+                                    </button>)}
                                   </td>
                                 </tr>
                               )
@@ -5371,7 +5418,7 @@ function App() {
                   className="modal-close-btn"
                   onClick={() => !intervencionLoading && setIsIntervencionModalOpen(false)}
                 >
-                  ✕
+                  <Icon n="x" />
                 </button>
               </div>
 
@@ -5379,7 +5426,7 @@ function App() {
                 <div className="modal-body">
                   {intervencionServerError && (
                     <div className="alert-error" role="alert">
-                      <span>⚠</span>
+                      <span><Icon n="warn" /></span>
                       <span>{intervencionServerError}</span>
                     </div>
                   )}
@@ -5387,7 +5434,7 @@ function App() {
                   {/* Advertencia si no hay equipos activos */}
                   {activeEquipos.length === 0 && (
                     <div className="alert-error" role="alert">
-                      <span>⚠</span>
+                      <span><Icon n="warn" /></span>
                       <span>Equipo no registrado. Solicite su creación al administrador.</span>
                     </div>
                   )}
@@ -5500,8 +5547,8 @@ function App() {
                             disabled={intervencionLoading}
                             autoFocus
                           />
-                          <span style={{ fontSize: '0.8rem', color: '#b45309' }}>
-                            ⚠️ Técnico no perteneciente al catálogo oficial BASE V1. Se registrará de forma manual para trazabilidad.
+                          <span style={{ fontSize: '0.8rem', color: '#f5b44a' }}>
+                            <Icon n="warn" /> Técnico no perteneciente al catálogo oficial BASE V1. Se registrará de forma manual para trazabilidad.
                           </span>
                         </div>
                       )}
@@ -5600,8 +5647,8 @@ function App() {
                         <div className="falla-toggle-info">
                           <span className="falla-toggle-title">
                             {intervencionForm.es_falla
-                              ? '⚠️ Esta intervención corresponde a una FALLA operada'
-                              : '🔧 Intervención rutinaria / No representa falla'}
+                              ? 'Esta intervención corresponde a una FALLA operada'
+                              : 'Intervención rutinaria / No representa falla'}
                           </span>
                           <span className="falla-toggle-desc">
                             {intervencionForm.es_falla
@@ -5735,7 +5782,7 @@ function App() {
             <div className="modal-container modal-wide modal-extra-wide" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <h2 className="modal-title">📊 Importar Bitácora — Construcción Progresiva del Maestro</h2>
+                  <h2 className="modal-title"><Icon n="chart" /> Importar Bitácora — Construcción Progresiva del Maestro</h2>
                   <p className="modal-subtitle">
                     Revisión y clasificación de equipos encontrados en el archivo Excel antes de autorizar su incorporación.
                   </p>
@@ -5745,7 +5792,7 @@ function App() {
                   className="modal-close-btn"
                   onClick={() => !importLoading && setIsImportModalOpen(false)}
                 >
-                  ✕
+                  <Icon n="x" />
                 </button>
               </div>
 
@@ -5754,7 +5801,7 @@ function App() {
                 <div className="approved-decisions-panel">
                   <div className="approved-panel-header">
                     <div className="approved-panel-title">
-                      <span className="panel-icon">🌲</span>
+                      <span className="panel-icon"><Icon n="tree" /></span>
                       <strong>Decisión de Clasificación Registrada</strong>
                       <span className="badge-count-pill">1 estructura aprobada</span>
                     </div>
@@ -5799,7 +5846,7 @@ function App() {
                     onChange={handleExcelFileSelect}
                     disabled={importLoading}
                   />
-                  <span className="import-dropzone-icon">📁</span>
+                  <span className="import-dropzone-icon"><Icon n="folder" /></span>
                   <span className="import-dropzone-title">
                     {importFileName ? `Archivo cargado: ${importFileName}` : 'Haga clic para seleccionar el archivo Excel (.xlsx)'}
                   </span>
@@ -5817,7 +5864,7 @@ function App() {
 
                 {importError && (
                   <div className="alert-error" role="alert" style={{ margin: 0 }}>
-                    <span>⚠</span>
+                    <span><Icon n="warn" /></span>
                     <span>{importError}</span>
                   </div>
                 )}
@@ -5843,12 +5890,12 @@ function App() {
 
                       <div className="import-stat-card stat-excluido">
                         <span className="import-stat-label">Rutinas excluidas</span>
-                        <span className="import-stat-num" style={{ color: '#4f46e5' }}>{importSummary.excluidos || 0}</span>
+                        <span className="import-stat-num" style={{ color: '#a5b4fc' }}>{importSummary.excluidos || 0}</span>
                       </div>
 
                       <div className="import-stat-card stat-muted">
                         <span className="import-stat-label">Duplicados omitidos</span>
-                        <span className="import-stat-num" style={{ color: '#64748b' }}>{importSummary.duplicados}</span>
+                        <span className="import-stat-num" style={{ color: '#8fa9bf' }}>{importSummary.duplicados}</span>
                       </div>
 
                       <div className="import-stat-card stat-invalid">
@@ -5876,7 +5923,7 @@ function App() {
                         className={`inner-tab-btn ${importModalTab === 'clasificacion' ? 'active' : ''}`}
                         onClick={() => setImportModalTab('clasificacion')}
                       >
-                        <span>📋 1. Clasificación Progresiva de Equipos</span>
+                        <span><Icon n="list" /> 1. Clasificación Progresiva de Equipos</span>
                         <span className="inner-tab-badge">
                           {pendingEquiposReview.filter((m) => m.estado === 'Pendiente').length} pendientes / {pendingEquiposReview.length} encontrados
                         </span>
@@ -5886,7 +5933,7 @@ function App() {
                         className={`inner-tab-btn ${importModalTab === 'filas' ? 'active' : ''}`}
                         onClick={() => setImportModalTab('filas')}
                       >
-                        <span>📄 2. Vista Previa de Filas Excel</span>
+                        <span><Icon n="doc" /> 2. Vista Previa de Filas Excel</span>
                         <span className="inner-tab-badge">{importRows.length} filas</span>
                       </button>
                     </div>
@@ -5909,14 +5956,14 @@ function App() {
                               className={`clasif-chip chip-pending ${clasifFilterEstado === 'Pendiente' ? 'active' : ''}`}
                               onClick={() => setClasifFilterEstado('Pendiente')}
                             >
-                              ⏳ Pendientes ({pendingEquiposReview.filter((m) => m.estado === 'Pendiente').length})
+                              <Icon n="wait" /> Pendientes ({pendingEquiposReview.filter((m) => m.estado === 'Pendiente').length})
                             </button>
                             <button
                               type="button"
                               className={`clasif-chip chip-padre ${clasifFilterEstado === 'Aprobado como padre' ? 'active' : ''}`}
                               onClick={() => setClasifFilterEstado('Aprobado como padre')}
                             >
-                              🏛️ Aprobados como Padre ({pendingEquiposReview.filter((m) => m.estado === 'Aprobado como padre').length})
+                              <Icon n="parent" /> Aprobados como Padre ({pendingEquiposReview.filter((m) => m.estado === 'Aprobado como padre').length})
                             </button>
                             <button
                               type="button"
@@ -5930,7 +5977,7 @@ function App() {
                               className={`clasif-chip chip-asociado ${clasifFilterEstado === 'Asociado a equipo existente' ? 'active' : ''}`}
                               onClick={() => setClasifFilterEstado('Asociado a equipo existente')}
                             >
-                              ✓ Asociados a Existente ({pendingEquiposReview.filter((m) => m.estado === 'Asociado a equipo existente').length})
+                              <Icon n="check" /> Asociados a Existente ({pendingEquiposReview.filter((m) => m.estado === 'Asociado a equipo existente').length})
                             </button>
                           </div>
 
@@ -5948,7 +5995,7 @@ function App() {
                                 className="clasif-search-clear"
                                 onClick={() => setClasifSearchText('')}
                               >
-                                ✕
+                                <Icon n="x" />
                               </button>
                             )}
                           </div>
@@ -6120,12 +6167,12 @@ function App() {
                                       <td>
                                         {item.estado === 'Pendiente' && (
                                           <span className="badge-tag-state badge-state-pending">
-                                            ⏳ Pendiente
+                                            <Icon n="wait" /> Pendiente
                                           </span>
                                         )}
                                         {item.estado === 'Aprobado como padre' && (
                                           <span className="badge-tag-state badge-state-padre">
-                                            🏛️ Aprobado como padre
+                                            <Icon n="parent" /> Aprobado como padre
                                           </span>
                                         )}
                                         {item.estado === 'Aprobado como hijo' && (
@@ -6135,7 +6182,7 @@ function App() {
                                         )}
                                         {item.estado === 'Asociado a equipo existente' && (
                                           <span className="badge-tag-state badge-state-asociado">
-                                            ✓ Asociado a equipo existente
+                                            <Icon n="check" /> Asociado a equipo existente
                                           </span>
                                         )}
                                       </td>
@@ -6250,15 +6297,15 @@ function App() {
                                       <td>
                                         {row.matchedEquipo ? (
                                           <span className="badge-tag-state badge-state-asociado">
-                                            ✓ [{row.matchedEquipo.codigo}] {row.matchedEquipo.nombre}
+                                            <Icon n="check" /> [{row.matchedEquipo.codigo}] {row.matchedEquipo.nombre}
                                           </span>
                                         ) : isExcluido ? (
-                                          <span className="badge-tag-state badge-state-muted" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#4f46e5' }}>
-                                            🛡️ Sin activo (Rutina)
+                                          <span className="badge-tag-state badge-state-muted" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#a5b4fc' }}>
+                                            <Icon n="shield" /> Sin activo (Rutina)
                                           </span>
                                         ) : isPendiente ? (
                                           <span className="badge-tag-state badge-state-pending">
-                                            ⏳ Pendiente de validación
+                                            <Icon n="wait" /> Pendiente de validación
                                           </span>
                                         ) : (
                                           <span style={{ color: 'var(--text-muted)' }}>—</span>
@@ -6271,7 +6318,7 @@ function App() {
                                           </span>
                                           {row.es_falla && (
                                             <span className="badge-tag-fallas" style={{ fontSize: '0.75rem' }}>
-                                              ⚠️ Falla {row.tipo_falla ? `(${row.tipo_falla})` : ''}
+                                              <Icon n="warn" /> Falla {row.tipo_falla ? `(${row.tipo_falla})` : ''}
                                             </span>
                                           )}
                                         </div>
@@ -6281,26 +6328,26 @@ function App() {
                                       </td>
                                       <td>
                                         {isResuelto && (
-                                          <span className="badge-tag-estado-resuelto">✓ Resuelto</span>
+                                          <span className="badge-tag-estado-resuelto"><Icon n="check" /> Resuelto</span>
                                         )}
                                         {isPendiente && (
                                           <span className="badge-tag-estado-pendiente" title={row.motivoPendiente || 'Activo no resuelto'}>
-                                            ⏳ Pendiente
+                                            <Icon n="wait" /> Pendiente
                                           </span>
                                         )}
                                         {isExcluido && (
                                           <span className="badge-tag-estado-excluido" title={row.motivoPendiente || 'Rutina preventiva diaria de despiche sin anomalías'}>
-                                            🛡️ Rutina excluida
+                                            <Icon n="shield" /> Rutina excluida
                                           </span>
                                         )}
                                         {isDuplicado && (
                                           <span className="badge-tag-estado-duplicado" title="Duplicado / ya existente en Bitácora">
-                                            ⚠️ Duplicado
+                                            <Icon n="warn" /> Duplicado
                                           </span>
                                         )}
                                         {isError && (
                                           <span className="badge-tag-estado-error" title={row.issues.join(', ')}>
-                                            ✕ Error
+                                            <Icon n="x" /> Error
                                           </span>
                                         )}
                                       </td>
@@ -6318,7 +6365,7 @@ function App() {
 
               <div className="modal-footer">
                 <div className="modal-footer-notice">
-                  <span className="notice-icon">🛡️</span>
+                  <span className="notice-icon"><Icon n="shield" /></span>
                   <span>
                     <strong>Control de Calidad:</strong> Los registros resueltos se vincularán directamente a <code>public.bitacora_mantenimiento</code> ({importSummary?.resueltos || 0}) y los no resueltos o ambiguos a <code>public.bitacora_importacion_pendiente</code> ({importSummary?.pendientes || 0}).
                   </span>
@@ -6353,13 +6400,13 @@ function App() {
           <div className="modal-overlay" onClick={() => setImportCompletedSummary(null)}>
             <div className="modal-container" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2 className="modal-title">🎉 Importación completada</h2>
+                <h2 className="modal-title"><Icon n="party" /> Importación completada</h2>
                 <button
                   type="button"
                   className="modal-close-btn"
                   onClick={() => setImportCompletedSummary(null)}
                 >
-                  ✕
+                  <Icon n="x" />
                 </button>
               </div>
               <div className="modal-body" style={{ padding: '1.5rem' }}>
@@ -6368,29 +6415,29 @@ function App() {
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
                   <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Registros procesados</span>
-                    <strong style={{ fontSize: '1.4rem', color: '#0f172a' }}>{importCompletedSummary.procesados}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#8fa9bf', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Registros procesados</span>
+                    <strong style={{ fontSize: '1.4rem', color: '#e8f4fb' }}>{importCompletedSummary.procesados}</strong>
                   </div>
                   <div style={{ background: '#f0fdf4', padding: '0.75rem', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Asignados automáticamente</span>
-                    <strong style={{ fontSize: '1.4rem', color: '#16a34a' }}>{importCompletedSummary.asignados}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#4ade80', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Asignados automáticamente</span>
+                    <strong style={{ fontSize: '1.4rem', color: '#4ade80' }}>{importCompletedSummary.asignados}</strong>
                   </div>
                   <div style={{ background: '#fef3c7', padding: '0.75rem', borderRadius: '8px', border: '1px solid #fcd34d' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Pendientes de validación</span>
-                    <strong style={{ fontSize: '1.4rem', color: '#b45309' }}>{importCompletedSummary.pendientes}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#f5b44a', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Pendientes de validación</span>
+                    <strong style={{ fontSize: '1.4rem', color: '#f5b44a' }}>{importCompletedSummary.pendientes}</strong>
                   </div>
                   <div style={{ background: '#f1f5f9', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Ignorados / Excluidos</span>
-                    <strong style={{ fontSize: '1.4rem', color: '#475569' }}>{importCompletedSummary.ignorados}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#b6cde0', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>Ignorados / Excluidos</span>
+                    <strong style={{ fontSize: '1.4rem', color: '#b6cde0' }}>{importCompletedSummary.ignorados}</strong>
                   </div>
                 </div>
                 {importCompletedSummary.pendientes > 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: '#b45309', background: '#fffbeb', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #fef3c7', margin: 0, lineHeight: 1.45 }}>
-                    ⚠️ <strong>Acción requerida:</strong> Se detectaron {importCompletedSummary.pendientes} tareas sin activo identificado. La pestaña <em>Validar importaciones</em> se ha abierto automáticamente para su resolución.
+                  <p style={{ fontSize: '0.85rem', color: '#f5b44a', background: '#fffbeb', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #fef3c7', margin: 0, lineHeight: 1.45 }}>
+                    <Icon n="warn" /> <strong>Acción requerida:</strong> Se detectaron {importCompletedSummary.pendientes} tareas sin activo identificado. La pestaña <em>Validar importaciones</em> se ha abierto automáticamente para su resolución.
                   </p>
                 ) : (
-                  <p style={{ fontSize: '0.85rem', color: '#16a34a', background: '#f0fdf4', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #bbf7d0', margin: 0, lineHeight: 1.45 }}>
-                    ✓ <strong>Importación completada sin tareas pendientes de validación.</strong> Todas las tareas se asociaron a sus activos oficiales.
+                  <p style={{ fontSize: '0.85rem', color: '#4ade80', background: '#f0fdf4', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #bbf7d0', margin: 0, lineHeight: 1.45 }}>
+                    <Icon n="check" /> <strong>Importación completada sin tareas pendientes de validación.</strong> Todas las tareas se asociaron a sus activos oficiales.
                   </p>
                 )}
               </div>

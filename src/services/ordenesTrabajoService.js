@@ -889,43 +889,14 @@ export const subscribeToOrdenesTrabajoRealtime = ({
   onStatusChange = () => {}
 } = {}) => {
   const handleChangeCallback = onDatabaseChange || onChange || (() => {})
-  const channelName = `realtime:orden_trabajo_${Date.now()}`
-  const channel = supabase
-    .channel(channelName)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'orden_trabajo'
-      },
-      (payload) => {
-        handleChangeCallback({
-          source: 'supabase_realtime',
-          eventType: payload.eventType,
-          newRecord: payload.new,
-          oldRecord: payload.old
-        })
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'orden_trabajo_estado_historial'
-      },
-      (payload) => {
-        handleChangeCallback({
-          source: 'supabase_realtime_historial',
-          eventType: 'HISTORIAL_INSERT',
-          newRecord: payload.new
-        })
-      }
-    )
-    .subscribe((status) => {
-      onStatusChange(status)
-    })
+  // Este despliegue no tiene el servicio Realtime de Supabase: se consulta cada 15 s (solo con la pestaña visible) y el
+  // callback hace una sincronización silenciosa. Sin WebSocket no hay errores de conexión en consola.
+  onStatusChange('SUBSCRIBED')
+  const sondeo = setInterval(() => {
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      handleChangeCallback({ source: 'polling', eventType: 'POLL' })
+    }
+  }, 15000)
 
   // Canal de sincronización instantánea entre sesiones/pestañas del navegador
   let broadcastChannel = null
@@ -960,11 +931,7 @@ export const subscribeToOrdenesTrabajoRealtime = ({
   }
 
   return () => {
-    try {
-      supabase.removeChannel(channel)
-    } catch {
-      // ignore
-    }
+    clearInterval(sondeo)
     try {
       if (broadcastChannel) broadcastChannel.close()
     } catch {

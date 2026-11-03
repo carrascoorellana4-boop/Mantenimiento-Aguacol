@@ -1,0 +1,58 @@
+# Mantenimiento AGUACOL — todo en red del host (el Postgres del servidor escucha en 127.0.0.1:5432).
+# Puertos locales: web 8090, PostgREST 3100, GoTrue 9999. Solo el túnel de Cloudflare lo publica.
+services:
+  web:
+    build:
+      context: ./repo
+      args:
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY}
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [postgrest, gotrue]
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://mant_authenticator:${AUTHENTICATOR_PW}@127.0.0.1:5432/mantenimiento
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: mant_anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_SERVER_HOST: 127.0.0.1
+      PGRST_SERVER_PORT: "3100"
+      PGRST_DB_MAX_ROWS: "20000"
+  gotrue:
+    image: supabase/gotrue:v2.158.1
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 127.0.0.1
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${PUBLIC_URL}
+      GOTRUE_SITE_URL: ${PUBLIC_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${SUPABASE_AUTH_PW}@127.0.0.1:5432/mantenimiento?search_path=auth
+      GOTRUE_DB_NAMESPACE: auth
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: "900"
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: mant_authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+  usermgr:
+    image: node:22-alpine
+    network_mode: host
+    restart: unless-stopped
+    working_dir: /app
+    volumes: ["./usermgr:/app:ro"]
+    command: node server.mjs
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SERVICE_KEY: ${SERVICE_KEY}
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    network_mode: host
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}

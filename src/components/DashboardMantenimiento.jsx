@@ -1,3 +1,4 @@
+import Icon from './Icon'
 import { useState, useMemo } from 'react'
 import { parseTecnicos } from '../lib/tecnicos'
 import { calculateOtDashboardMetrics } from '../services/ordenesTrabajoService'
@@ -839,11 +840,11 @@ export default function DashboardMantenimiento({
 
         <div className="fracttal-header-meta">
           <div className="fracttal-meta-pill" title="Período de análisis activo">
-            <span className="fracttal-meta-icon">📅</span>
+            <span className="fracttal-meta-icon"><Icon n="calendar" /></span>
             <span className="fracttal-meta-text">{periodoLabel}</span>
           </div>
           <div className="fracttal-meta-pill" title="Última actualización de datos">
-            <span className="fracttal-meta-icon">🕒</span>
+            <span className="fracttal-meta-icon"><Icon n="clock" /></span>
             <span className="fracttal-meta-text">
               Actualizado: {lastUpdate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -853,11 +854,11 @@ export default function DashboardMantenimiento({
               onClick={onRefreshData}
               title="Recargar datos de Supabase"
             >
-              🔄
+              <Icon n="refresh" />
             </button>
           </div>
           <div className="fracttal-meta-pill fracttal-user-pill">
-            <span className="fracttal-meta-icon">👤</span>
+            <span className="fracttal-meta-icon"><Icon n="user" /></span>
             <span className="fracttal-meta-text">
               {session?.user?.email || 'Usuario autenticado'}
             </span>
@@ -869,7 +870,7 @@ export default function DashboardMantenimiento({
       <div className="fracttal-filters-card">
         <div className="fracttal-filters-header">
           <div className="fracttal-filters-title">
-            <span className="fracttal-filter-icon">⚙️</span>
+            <span className="fracttal-filter-icon"><Icon n="cog" /></span>
             <span>Filtros Globales de Mantenimiento</span>
           </div>
           {hasActiveFilters && (
@@ -878,7 +879,7 @@ export default function DashboardMantenimiento({
               className="fracttal-btn-clear"
               onClick={handleResetFilters}
             >
-              ✕ Limpiar filtros
+              <Icon n="x" /> Limpiar filtros
             </button>
           )}
         </div>
@@ -1082,7 +1083,7 @@ export default function DashboardMantenimiento({
 
         {customDateError && (
           <div className="fracttal-filter-error-banner" role="alert">
-            <span>⚠️</span>
+            <span><Icon n="warn" /></span>
             <span>La fecha &quot;Desde&quot; ({customFechaDesde}) no puede ser posterior a la fecha &quot;Hasta&quot; ({customFechaHasta}).</span>
           </div>
         )}
@@ -1105,7 +1106,7 @@ export default function DashboardMantenimiento({
         >
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title">Intervenciones</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-blue">📋</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-blue"><Icon n="list" /></span>
           </div>
           <div className="fracttal-kpi-value">{kpis.totalIntervenciones}</div>
           <div className="fracttal-kpi-subtitle">Total registradas en el período</div>
@@ -1119,7 +1120,7 @@ export default function DashboardMantenimiento({
         >
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title text-alert">Fallas</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-red">⚠️</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-red"><Icon n="warn" /></span>
           </div>
           <div className="fracttal-kpi-value text-alert">{kpis.totalFallas}</div>
           <div className="fracttal-kpi-subtitle">Paradas y fallas operacionales</div>
@@ -1133,7 +1134,7 @@ export default function DashboardMantenimiento({
         >
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title">Preventivas</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-green">🛡️</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-green"><Icon n="shield" /></span>
           </div>
           <div className="fracttal-kpi-value">{kpis.totalPreventivas}</div>
           <div className="fracttal-kpi-subtitle">Mantenimiento preventivo</div>
@@ -1147,7 +1148,7 @@ export default function DashboardMantenimiento({
         >
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title">Correctivas</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-amber">🔧</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-amber"><Icon n="tools" /></span>
           </div>
           <div className="fracttal-kpi-value">{kpis.totalCorrectivas}</div>
           <div className="fracttal-kpi-subtitle">Reparaciones correctivas</div>
@@ -1157,7 +1158,7 @@ export default function DashboardMantenimiento({
         <div className="fracttal-kpi-card">
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title">Activos intervenidos</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-purple">🏭</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-purple"><Icon n="factory" /></span>
           </div>
           <div className="fracttal-kpi-value">{kpis.activosIntervenidos}</div>
           <div className="fracttal-kpi-subtitle">Equipos con intervención</div>
@@ -1175,7 +1176,7 @@ export default function DashboardMantenimiento({
         >
           <div className="fracttal-kpi-top">
             <span className="fracttal-kpi-title">Activo con más fallas</span>
-            <span className="fracttal-kpi-icon-wrapper kpi-icon-red">🎯</span>
+            <span className="fracttal-kpi-icon-wrapper kpi-icon-red"><Icon n="target" /></span>
           </div>
           {kpis.topEquipoFalla ? (
             <>
@@ -1201,7 +1202,7 @@ export default function DashboardMantenimiento({
         <div className="fracttal-card-header" style={{ paddingBottom: '0.75rem' }}>
           <div>
             <h2 className="fracttal-card-title">
-              🛠️ Estado Operacional y Cierre de Órdenes de Trabajo
+              <Icon n="tools" /> Estado Operacional y Cierre de Órdenes de Trabajo
             </h2>
             <p className="fracttal-card-desc">
               Resumen de órdenes pendientes, en curso y cerradas en el período seleccionado ({periodoLabel}).
@@ -1802,7 +1803,7 @@ export default function DashboardMantenimiento({
             </table>
           </div>
           <div className="fracttal-card-footer-note">
-            ℹ️ Los niveles de criticidad operacional reciente son una ayuda visual dinámica basada en la tasa de eventos recientes y no alteran la criticidad maestra del activo en base de datos.
+            ℹ Los niveles de criticidad operacional reciente son una ayuda visual dinámica basada en la tasa de eventos recientes y no alteran la criticidad maestra del activo en base de datos.
           </div>
         </div>
       </div>

@@ -64,7 +64,7 @@ export const JERARQUIA_APROBADA = [
   // ==========================================
   {
     area: 'Plásticos',
-    areaIcono: '🏭',
+    areaIcono: 'factory',
     areaDescripcion: 'Área integral de inyección, extrusión y servicios de refrigeración',
     equiposPadre: [
       // ------------------------------------------
@@ -798,7 +798,7 @@ export const JERARQUIA_APROBADA = [
   // ==========================================
   {
     area: 'Soplado',
-    areaIcono: '🧴',
+    areaIcono: 'flask',
     areaDescripcion: 'Área de soplado de envases plásticos y servicios auxiliares (Ex PET)',
     equiposPadre: [
       {
@@ -936,7 +936,7 @@ export const JERARQUIA_APROBADA = [
   // ==========================================
   {
     area: 'Producción / JJV',
-    areaIcono: '⚙️',
+    areaIcono: 'cog',
     areaDescripcion: 'Líneas de envasado JJV, galpón de producción, cloro y cocina',
     equiposPadre: [
       // 3.1 GALPÓN DE PRODUCCIÓN
@@ -1187,7 +1187,7 @@ export const JERARQUIA_APROBADA = [
   // ==========================================
   {
     area: 'Servicios Generales',
-    areaIcono: '🛠️',
+    areaIcono: 'tools',
     areaDescripcion: 'Mantenimiento de infraestructura, instalaciones generales y servicios de planta',
     equiposPadre: [
       {
@@ -1258,7 +1258,7 @@ export const JERARQUIA_APROBADA = [
   // ==========================================
   {
     area: 'Bodega Tradicional',
-    areaIcono: '📦',
+    areaIcono: 'box',
     areaDescripcion: 'Almacenamiento de pallets y materias primas en racks',
     equiposPadre: [
       {
@@ -1421,7 +1421,7 @@ export function buildActivosTree(equiposList = [], supabaseArbolNodes = []) {
     return {
       id: areaId,
       nombre: areaDef.area,
-      icono: areaDef.areaIcono || '🏭',
+      icono: areaDef.areaIcono || 'factory',
       descripcion: areaDef.areaDescripcion || '',
       equipos
     }
