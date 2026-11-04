@@ -90,9 +90,9 @@ DROP POLICY IF EXISTS prev_evid_select ON public.plan_preventivo_evidencia;
 DROP POLICY IF EXISTS prev_evid_admin ON public.plan_preventivo_evidencia;
 
 -- Lectura para mant_admin y mant_authenticated
-CREATE POLICY prev_tarea_select ON public.plan_preventivo_tarea FOR SELECT TO mant_admin, mant_authenticated USING (true);
-CREATE POLICY prev_ejec_select ON public.plan_preventivo_ejecucion FOR SELECT TO mant_admin, mant_authenticated USING (true);
-CREATE POLICY prev_evid_select ON public.plan_preventivo_evidencia FOR SELECT TO mant_admin, mant_authenticated USING (true);
+CREATE POLICY prev_tarea_select ON public.plan_preventivo_tarea FOR SELECT TO mant_admin, mant_authenticated, mant_anon USING (true);
+CREATE POLICY prev_ejec_select ON public.plan_preventivo_ejecucion FOR SELECT TO mant_admin, mant_authenticated, mant_anon USING (true);
+CREATE POLICY prev_evid_select ON public.plan_preventivo_evidencia FOR SELECT TO mant_admin, mant_authenticated, mant_anon USING (true);
 
 -- Escritura solo para mant_admin
 CREATE POLICY prev_tarea_admin ON public.plan_preventivo_tarea FOR ALL TO mant_admin USING (true) WITH CHECK (true);
@@ -100,17 +100,17 @@ CREATE POLICY prev_ejec_admin ON public.plan_preventivo_ejecucion FOR ALL TO man
 CREATE POLICY prev_evid_admin ON public.plan_preventivo_evidencia FOR ALL TO mant_admin USING (true) WITH CHECK (true);
 
 -- Otorgar privilegios a los roles
-GRANT SELECT ON public.plan_preventivo_tarea TO mant_authenticated;
-GRANT SELECT ON public.plan_preventivo_ejecucion TO mant_authenticated;
-GRANT SELECT ON public.plan_preventivo_evidencia TO mant_authenticated;
+GRANT SELECT ON public.plan_preventivo_tarea TO mant_authenticated, mant_anon;
+GRANT SELECT ON public.plan_preventivo_ejecucion TO mant_authenticated, mant_anon;
+GRANT SELECT ON public.plan_preventivo_evidencia TO mant_authenticated, mant_anon;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.plan_preventivo_tarea TO mant_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.plan_preventivo_ejecucion TO mant_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.plan_preventivo_evidencia TO mant_admin;
 
-REVOKE ALL ON public.plan_preventivo_tarea FROM mant_anon, PUBLIC;
-REVOKE ALL ON public.plan_preventivo_ejecucion FROM mant_anon, PUBLIC;
-REVOKE ALL ON public.plan_preventivo_evidencia FROM mant_anon, PUBLIC;
+REVOKE ALL ON public.plan_preventivo_tarea FROM PUBLIC;
+REVOKE ALL ON public.plan_preventivo_ejecucion FROM PUBLIC;
+REVOKE ALL ON public.plan_preventivo_evidencia FROM PUBLIC;
 
 -- --------------------------------------------------------------------
 -- 5. CARGA INICIAL IDEMPOTENTE: EXTRUSORAS M1 A M5 (95 TAREAS)
