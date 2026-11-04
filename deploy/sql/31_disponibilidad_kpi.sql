@@ -1,8 +1,11 @@
 -- =============================================================================
--- MIGRACIÓN 31: MÓDULO KPI DE DISPONIBILIDAD OPERACIONAL (PRODUCCIÓN & MANTENIMIENTO)
+-- MIGRACIÓN 31: MÓDULO KPI DE DISPONIBILIDAD OPERACIONAL (FÓRMULA OFICIAL AGUACOL)
+-- Fórmula: Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) * 100
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS public.registro_disponibilidad (
+DROP TABLE IF EXISTS public.registro_disponibilidad CASCADE;
+
+CREATE TABLE public.registro_disponibilidad (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     fecha date NOT NULL,
     equipo_id uuid REFERENCES public.equipo(id) ON DELETE SET NULL,
@@ -10,12 +13,12 @@ CREATE TABLE IF NOT EXISTS public.registro_disponibilidad (
     nombre_equipo text,
     area text,
     linea text,
-    tiempo_produccion_horas numeric(10, 2) NOT NULL DEFAULT 0 CHECK (tiempo_produccion_horas >= 0),
-    tiempo_detencion_horas numeric(10, 2) NOT NULL DEFAULT 0 CHECK (tiempo_detencion_horas >= 0),
+    horas_disponibles numeric(10, 2) NOT NULL DEFAULT 0 CHECK (horas_disponibles >= 0),
+    horas_mantencion numeric(10, 2) NOT NULL DEFAULT 0 CHECK (horas_mantencion >= 0),
     disponibilidad_pct numeric(5, 2) GENERATED ALWAYS AS (
         CASE 
-            WHEN tiempo_produccion_horas > 0 THEN 
-                GREATEST(0, LEAST(100, ROUND((((tiempo_produccion_horas - tiempo_detencion_horas) / tiempo_produccion_horas) * 100)::numeric, 2)))
+            WHEN (horas_disponibles + horas_mantencion) > 0 THEN 
+                GREATEST(0, LEAST(100, ROUND(((horas_disponibles / (horas_disponibles + horas_mantencion)) * 100)::numeric, 2)))
             ELSE 0 
         END
     ) STORED,
@@ -29,19 +32,14 @@ CREATE TABLE IF NOT EXISTS public.registro_disponibilidad (
     created_at timestamptz DEFAULT now() NOT NULL
 );
 
--- Índices para consultas rápidas y filtros de período
-CREATE INDEX IF NOT EXISTS idx_reg_disp_fecha ON public.registro_disponibilidad(fecha DESC);
-CREATE INDEX IF NOT EXISTS idx_reg_disp_codigo ON public.registro_disponibilidad(codigo_equipo);
-CREATE INDEX IF NOT EXISTS idx_reg_disp_equipo_id ON public.registro_disponibilidad(equipo_id);
-CREATE INDEX IF NOT EXISTS idx_reg_disp_area ON public.registro_disponibilidad(area);
+-- Índices para optimizar consultas por fecha, equipo y área
+CREATE INDEX idx_reg_disp_fecha ON public.registro_disponibilidad(fecha DESC);
+CREATE INDEX idx_reg_disp_codigo ON public.registro_disponibilidad(codigo_equipo);
+CREATE INDEX idx_reg_disp_equipo_id ON public.registro_disponibilidad(equipo_id);
+CREATE INDEX idx_reg_disp_area ON public.registro_disponibilidad(area);
 
 -- Habilitar RLS
 ALTER TABLE public.registro_disponibilidad ENABLE ROW LEVEL SECURITY;
-
--- Limpiar políticas existentes si se reaplica
-DROP POLICY IF EXISTS reg_disp_select ON public.registro_disponibilidad;
-DROP POLICY IF EXISTS reg_disp_insert ON public.registro_disponibilidad;
-DROP POLICY IF EXISTS reg_disp_admin ON public.registro_disponibilidad;
 
 -- Políticas de acceso
 CREATE POLICY reg_disp_select ON public.registro_disponibilidad 

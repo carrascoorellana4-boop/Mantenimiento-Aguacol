@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 
-const LOCAL_STORAGE_KEY = 'aguacol_disponibilidad_registros_v1'
+const LOCAL_STORAGE_KEY = 'aguacol_disponibilidad_registros_v2'
 
 /**
  * Normaliza nombres o códigos de equipos de planta para enlace automático
@@ -147,7 +147,6 @@ export async function guardarLoteDisponibilidad(registros = []) {
     const { error } = await supabase
       .from('registro_disponibilidad')
       .insert(registros)
-      .select('id')
 
     if (!error) {
       dbOk = true
@@ -194,17 +193,20 @@ export async function eliminarRegistroDisponibilidad(id) {
 }
 
 /**
- * Analiza y parsea la planilla Excel de producción para extraer tiempos y detenciones
+ * Analiza y parsea la planilla Excel de producción para extraer:
+ * - Horas disponibles
+ * - Horas en mantención
+ * Y calcula Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) * 100
  */
 export async function parseExcelProduccionFile(file, equiposList = []) {
   const buf = await file.arrayBuffer()
   const workbook = XLSX.read(buf, { type: 'array' })
 
-  // Tomar la primera hoja o una hoja que contenga "produccion", "detencion" o "disponibilidad"
+  // Tomar la primera hoja o una hoja relevante
   let sheetName = workbook.SheetNames[0]
   for (const name of workbook.SheetNames) {
     const low = name.toLowerCase()
-    if (low.includes('produccion') || low.includes('detencion') || low.includes('disponibilidad') || low.includes('parada')) {
+    if (low.includes('disponib') || low.includes('mantencion') || low.includes('produccion') || low.includes('detencion')) {
       sheetName = name
       break
     }
@@ -228,45 +230,58 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
       const h = String(cell).toLowerCase().trim()
       if (h.includes('fecha') || h.includes('dia') || h.includes('día')) map.fecha = idx
       if (h.includes('equipo') || h.includes('maquina') || h.includes('máquina') || h.includes('activo') || h.includes('linea') || h.includes('línea')) map.equipo = idx
+
+      // Horas disponibles (tiempo disponible / horas produccion operativas)
       if (
+        h.includes('horas disp') ||
+        h.includes('hora disp') ||
+        h.includes('tiempo disp') ||
+        h.includes('disponible') ||
+        h.includes('disponibles') ||
         h.includes('tiempo prod') ||
         h.includes('horas prod') ||
         h.includes('hrs prod') ||
-        h.includes('tiempo plan') ||
-        h.includes('horas plan') ||
-        h.includes('tiempo disponible') ||
-        h.includes('tiempo total') ||
+        h.includes('tiempo operativo') ||
         h.includes('produccion') ||
         h.includes('producción')
-      ) map.tiempo_prod = idx
+      ) {
+        map.horas_disp = idx
+      }
+
+      // Horas en mantención (falla / detención)
       if (
-        h.includes('tiempo det') ||
-        h.includes('horas det') ||
-        h.includes('hrs det') ||
+        h.includes('horas en mant') ||
+        h.includes('hora en mant') ||
+        h.includes('horas mant') ||
+        h.includes('tiempo mant') ||
+        h.includes('mantencion') ||
+        h.includes('mantención') ||
         h.includes('detencion') ||
         h.includes('detención') ||
+        h.includes('horas det') ||
+        h.includes('hrs det') ||
         h.includes('parada') ||
-        h.includes('paradas') ||
-        h.includes('falla') ||
-        h.includes('mantenimiento')
-      ) map.tiempo_det = idx
+        h.includes('falla')
+      ) {
+        map.horas_mant = idx
+      }
+
       if (h.includes('motivo') || h.includes('causa') || h.includes('tipo') || h.includes('falla')) map.motivo = idx
       if (h.includes('turno')) map.turno = idx
       if (h.includes('observacion') || h.includes('observación') || h.includes('comentario')) map.observaciones = idx
     })
 
-    // Debe contener al menos fecha y equipo
-    if (map.fecha !== undefined && (map.equipo !== undefined || map.tiempo_prod !== undefined)) {
+    if (map.fecha !== undefined && (map.equipo !== undefined || map.horas_disp !== undefined)) {
       headerIndex = r
       colMap = map
       break
     }
   }
 
-  // Si no se detectaron nombres típicos, usar índices por defecto
+  // Si no se detectaron encabezados exactos, mapeo posicional
   if (headerIndex === -1) {
     headerIndex = 0
-    colMap = { fecha: 0, equipo: 1, tiempo_prod: 2, tiempo_det: 3, motivo: 4 }
+    colMap = { fecha: 0, equipo: 1, horas_disp: 2, horas_mant: 3, motivo: 4 }
   }
 
   const filasParseadas = []
@@ -280,11 +295,11 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
     const fecha = parseExcelFecha(rawFecha) || hoyStr
 
     const rawEquipo = colMap.equipo !== undefined ? String(row[colMap.equipo] || '').trim() : ''
-    if (!rawEquipo && !rawFecha) continue // fila vacía
+    if (!rawEquipo && !rawFecha) continue
 
-    // Tiempos
-    const tiempoProd = colMap.tiempo_prod !== undefined ? parseHoras(row[colMap.tiempo_prod]) : 8 // default 8 hrs si no se indica
-    const tiempoDet = colMap.tiempo_det !== undefined ? parseHoras(row[colMap.tiempo_det]) : 0
+    // Tiempos según la fórmula oficial
+    const horasDisponibles = colMap.horas_disp !== undefined ? parseHoras(row[colMap.horas_disp]) : 8
+    const horasMantencion = colMap.horas_mant !== undefined ? parseHoras(row[colMap.horas_mant]) : 0
 
     // Enlazar equipo con catálogo oficial si está disponible
     let matchedEquipo = null
@@ -298,11 +313,11 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
       })
     }
 
-    // Calcular disponibilidad con la fórmula oficial
+    // Fórmula: Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) * 100
     let dispPct = 0
-    if (tiempoProd > 0) {
-      const operando = (tiempoProd - tiempoDet) / tiempoProd
-      dispPct = Math.max(0, Math.min(100, Number((operando * 100).toFixed(2))))
+    const denominador = horasDisponibles + horasMantencion
+    if (denominador > 0) {
+      dispPct = Math.max(0, Math.min(100, Number(((horasDisponibles / denominador) * 100).toFixed(2))))
     }
 
     const motivo = colMap.motivo !== undefined ? String(row[colMap.motivo] || '').trim() : ''
@@ -317,10 +332,10 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
       nombre_equipo: matchedEquipo?.nombre || rawEquipo || 'Equipo sin especificar',
       area: matchedEquipo?.area || matchedEquipo?.ubicacion || 'Producción',
       linea: matchedEquipo?.linea || null,
-      tiempo_produccion_horas: tiempoProd,
-      tiempo_detencion_horas: tiempoDet,
+      horas_disponibles: horasDisponibles,
+      horas_mantencion: horasMantencion,
       disponibilidad_pct: dispPct,
-      tipo_detencion: tiempoDet > 0 ? (motivo || 'Falla / Mantenimiento') : 'Sin detención',
+      tipo_detencion: horasMantencion > 0 ? (motivo || 'Falla / Mantenimiento') : 'Sin detención',
       motivo: motivo || null,
       turno: turno || null,
       observaciones: obs || null,
@@ -339,15 +354,15 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
 
 /**
  * Consolida indicadores KPI de disponibilidad según la fórmula oficial:
- * ((tiempo produccion - tiempo detencion)/tiempo produccion) * 100
+ * Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) * 100
  */
 export function consolidarKpisDisponibilidad(registros = []) {
   if (!Array.isArray(registros) || registros.length === 0) {
     return {
       disponibilidadGlobal: 0,
-      totalHorasProduccion: 0,
-      totalHorasDetencion: 0,
-      totalHorasOperativas: 0,
+      totalHorasDisponibles: 0,
+      totalHorasMantencion: 0,
+      totalHorasBase: 0,
       totalRegistros: 0,
       porEquipo: [],
       porDia: [],
@@ -356,18 +371,19 @@ export function consolidarKpisDisponibilidad(registros = []) {
     }
   }
 
-  let totalProd = 0
-  let totalDet = 0
+  let totalDisp = 0
+  let totalMant = 0
 
   const porEquipoMap = new Map()
   const porDiaMap = new Map()
 
   for (const reg of registros) {
-    const prod = Number(reg.tiempo_produccion_horas) || 0
-    const det = Number(reg.tiempo_detencion_horas) || 0
+    // Acepta horas_disponibles o retrocompatibilidad con tiempo_produccion_horas
+    const hDisp = Number(reg.horas_disponibles !== undefined ? reg.horas_disponibles : reg.tiempo_produccion_horas) || 0
+    const hMant = Number(reg.horas_mantencion !== undefined ? reg.horas_mantencion : reg.tiempo_detencion_horas) || 0
 
-    totalProd += prod
-    totalDet += det
+    totalDisp += hDisp
+    totalMant += hMant
 
     // Consolidación por Equipo
     const keyEq = reg.codigo_equipo || reg.nombre_equipo || 'Desconocido'
@@ -376,14 +392,14 @@ export function consolidarKpisDisponibilidad(registros = []) {
         codigo: reg.codigo_equipo,
         nombre: reg.nombre_equipo || reg.codigo_equipo,
         area: reg.area || 'Producción',
-        tiempo_produccion_horas: 0,
-        tiempo_detencion_horas: 0,
+        horas_disponibles: 0,
+        horas_mantencion: 0,
         registros_count: 0,
       })
     }
     const eqItem = porEquipoMap.get(keyEq)
-    eqItem.tiempo_produccion_horas += prod
-    eqItem.tiempo_detencion_horas += det
+    eqItem.horas_disponibles += hDisp
+    eqItem.horas_mantencion += hMant
     eqItem.registros_count += 1
 
     // Consolidación por Día
@@ -391,40 +407,42 @@ export function consolidarKpisDisponibilidad(registros = []) {
     if (!porDiaMap.has(diaKey)) {
       porDiaMap.set(diaKey, {
         fecha: diaKey,
-        tiempo_produccion_horas: 0,
-        tiempo_detencion_horas: 0,
+        horas_disponibles: 0,
+        horas_mantencion: 0,
       })
     }
     const diaItem = porDiaMap.get(diaKey)
-    diaItem.tiempo_produccion_horas += prod
-    diaItem.tiempo_detencion_horas += det
+    diaItem.horas_disponibles += hDisp
+    diaItem.horas_mantencion += hMant
   }
 
-  // Calcular disponibilidad global
+  // Fórmula consolidada: Disponibilidad Global = (totalDisp / (totalDisp + totalMant)) * 100
   let dispGlobal = 0
-  if (totalProd > 0) {
-    const operando = (totalProd - totalDet) / totalProd
-    dispGlobal = Math.max(0, Math.min(100, Number((operando * 100).toFixed(2))))
+  const denomGlobal = totalDisp + totalMant
+  if (denomGlobal > 0) {
+    dispGlobal = Math.max(0, Math.min(100, Number(((totalDisp / denomGlobal) * 100).toFixed(2))))
   }
 
-  // Calcular disponibilidad por equipo y ordenar
+  // Consolidado por equipo
   const porEquipo = Array.from(porEquipoMap.values()).map((eq) => {
     let pct = 0
-    if (eq.tiempo_produccion_horas > 0) {
-      pct = Math.max(0, Math.min(100, Number((((eq.tiempo_produccion_horas - eq.tiempo_detencion_horas) / eq.tiempo_produccion_horas) * 100).toFixed(2))))
+    const denomEq = eq.horas_disponibles + eq.horas_mantencion
+    if (denomEq > 0) {
+      pct = Math.max(0, Math.min(100, Number(((eq.horas_disponibles / denomEq) * 100).toFixed(2))))
     }
     return {
       ...eq,
-      tiempo_operativo_horas: Number((eq.tiempo_produccion_horas - eq.tiempo_detencion_horas).toFixed(2)),
+      total_horas: Number(denomEq.toFixed(2)),
       disponibilidad_pct: pct,
     }
   }).sort((a, b) => b.disponibilidad_pct - a.disponibilidad_pct)
 
-  // Calcular disponibilidad por día
+  // Consolidado por día
   const porDia = Array.from(porDiaMap.values()).map((d) => {
     let pct = 0
-    if (d.tiempo_produccion_horas > 0) {
-      pct = Math.max(0, Math.min(100, Number((((d.tiempo_produccion_horas - d.tiempo_detencion_horas) / d.tiempo_produccion_horas) * 100).toFixed(2))))
+    const denomDia = d.horas_disponibles + d.horas_mantencion
+    if (denomDia > 0) {
+      pct = Math.max(0, Math.min(100, Number(((d.horas_disponibles / denomDia) * 100).toFixed(2))))
     }
     return {
       ...d,
@@ -434,9 +452,9 @@ export function consolidarKpisDisponibilidad(registros = []) {
 
   return {
     disponibilidadGlobal: dispGlobal,
-    totalHorasProduccion: Number(totalProd.toFixed(2)),
-    totalHorasDetencion: Number(totalDet.toFixed(2)),
-    totalHorasOperativas: Number((totalProd - totalDet).toFixed(2)),
+    totalHorasDisponibles: Number(totalDisp.toFixed(2)),
+    totalHorasMantencion: Number(totalMant.toFixed(2)),
+    totalHorasBase: Number((totalDisp + totalMant).toFixed(2)),
     totalRegistros: registros.length,
     porEquipo,
     porDia,

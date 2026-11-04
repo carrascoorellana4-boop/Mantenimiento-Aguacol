@@ -162,41 +162,41 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
     setSuccessMsg('Registro eliminado correctamente.')
   }
 
-  // Generar y descargar plantilla Excel de ejemplo
+  // Generar y descargar plantilla Excel de ejemplo con la fórmula oficial
   const handleDescargarPlantilla = () => {
     const plantillaData = [
       {
         'Fecha': '2026-11-04',
         'Equipo': 'Extrusora M1',
-        'Tiempo Produccion (Horas)': 8,
-        'Tiempo Detencion (Horas)': 0.5,
-        'Motivo': 'Cambio de filtro de boquilla',
+        'Horas disponibles': 7.5,
+        'Horas en mantencion': 0.5,
+        'Motivo de mantencion': 'Ajuste preventivo boquilla',
         'Turno': 'Turno 1',
-        'Observaciones': 'Operación normal luego del ajuste',
+        'Observaciones': 'Operación continua',
       },
       {
         'Fecha': '2026-11-04',
         'Equipo': 'Extrusora M2',
-        'Tiempo Produccion (Horas)': 8,
-        'Tiempo Detencion (Horas)': 0,
-        'Motivo': '',
+        'Horas disponibles': 8.0,
+        'Horas en mantencion': 0.0,
+        'Motivo de mantencion': '',
         'Turno': 'Turno 1',
-        'Observaciones': 'Turno sin paradas operativas',
+        'Observaciones': 'Sin paradas en mantención',
       },
       {
         'Fecha': '2026-11-04',
         'Equipo': 'Extrusora M3',
-        'Tiempo Produccion (Horas)': 8,
-        'Tiempo Detencion (Horas)': 1.25,
-        'Motivo': 'Falla eléctrica en calefactor zona 2',
+        'Horas disponibles': 6.75,
+        'Horas en mantencion': 1.25,
+        'Motivo de mantencion': 'Falla eléctrica resistencia zona 2',
         'Turno': 'Turno 2',
-        'Observaciones': 'Reemplazo de resistencia',
+        'Observaciones': 'Reemplazo completado por mantención',
       },
     ]
 
     const ws = XLSX.utils.json_to_sheet(plantillaData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Detenciones_Produccion')
+    XLSX.utils.book_append_sheet(wb, ws, 'Disponibilidad_Produccion')
     XLSX.writeFile(wb, 'Plantilla_Disponibilidad_Produccion.xlsx')
   }
 
@@ -240,16 +240,16 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         </div>
 
         <p className="disp-subtitle">
-          Consolidación de tiempos de producción, detenciones por falla o mantenimiento y cálculo de disponibilidad por activo.
+          Consolidación de horas disponibles y horas en mantención por activo según planilla oficial de producción.
         </p>
 
-        {/* FÓRMULA OFICIAL VISIBLE */}
+        {/* FÓRMULA OFICIAL EXACTA */}
         <div className="disp-formula-banner">
           <div className="disp-formula-text">
             <Icon n="chart" size="1.1em" />
-            <span>Fórmula Oficial de Disponibilidad:</span>
+            <span>Fórmula Oficial:</span>
             <span className="disp-formula-badge">
-              ((Tiempo Producción - Tiempo Detención) / Tiempo Producción) × 100
+              Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) × 100
             </span>
           </div>
           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
@@ -297,42 +297,44 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
           </p>
         </div>
 
-        {/* KPI 2: Horas de Producción */}
+        {/* KPI 2: Horas Disponibles */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas Programadas</h3>
+            <h3 className="disp-kpi-title">Horas Disponibles</h3>
             <div className="disp-kpi-icon disp-icon-prod">
-              <Icon n="clock" />
+              <Icon n="zap" />
             </div>
           </div>
-          <p className="disp-kpi-value">{kpis.totalHorasProduccion.toFixed(1)} h</p>
-          <p className="disp-kpi-desc">Tiempo total planificado de producción</p>
+          <p className="disp-kpi-value" style={{ color: '#34d399' }}>
+            {kpis.totalHorasDisponibles.toFixed(1)} h
+          </p>
+          <p className="disp-kpi-desc">Tiempo efectivo disponible en producción</p>
         </div>
 
-        {/* KPI 3: Horas de Detención */}
+        {/* KPI 3: Horas en Mantención */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas Detención</h3>
+            <h3 className="disp-kpi-title">Horas en Mantención</h3>
             <div className="disp-kpi-icon disp-icon-det">
               <Icon n="warn" />
             </div>
           </div>
-          <p className="disp-kpi-value" style={{ color: kpis.totalHorasDetencion > 0 ? '#f87171' : '#f1f5f9' }}>
-            {kpis.totalHorasDetencion.toFixed(1)} h
+          <p className="disp-kpi-value" style={{ color: kpis.totalHorasMantencion > 0 ? '#f87171' : '#f1f5f9' }}>
+            {kpis.totalHorasMantencion.toFixed(1)} h
           </p>
-          <p className="disp-kpi-desc">Paradas por falla o mantenimiento</p>
+          <p className="disp-kpi-desc">Detención por falla o mantención</p>
         </div>
 
-        {/* KPI 4: Horas Netas Operativas */}
+        {/* KPI 4: Total Horas Base */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas Operativas</h3>
+            <h3 className="disp-kpi-title">Horas Totales Base</h3>
             <div className="disp-kpi-icon disp-icon-neto">
-              <Icon n="zap" />
+              <Icon n="clock" />
             </div>
           </div>
-          <p className="disp-kpi-value">{kpis.totalHorasOperativas.toFixed(1)} h</p>
-          <p className="disp-kpi-desc">Tiempo efectivo en marcha productiva</p>
+          <p className="disp-kpi-value">{kpis.totalHorasBase.toFixed(1)} h</p>
+          <p className="disp-kpi-desc">Horas disponibles + Horas en mantención</p>
         </div>
       </div>
 
@@ -433,9 +435,9 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                   <tr>
                     <th>Equipo / Activo</th>
                     <th>Área</th>
-                    <th style={{ textAlign: 'right' }}>Horas Prod.</th>
-                    <th style={{ textAlign: 'right' }}>Horas Detención</th>
-                    <th style={{ textAlign: 'right' }}>Horas Operativas</th>
+                    <th style={{ textAlign: 'right' }}>Horas Disponibles</th>
+                    <th style={{ textAlign: 'right' }}>Horas en Mantención</th>
+                    <th style={{ textAlign: 'right' }}>Total (Disp + Mant)</th>
                     <th style={{ width: '220px' }}>Disponibilidad (%)</th>
                     <th>Estado</th>
                   </tr>
@@ -470,14 +472,14 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <td>
                             <span className="mp-badge-tag">{eq.area}</span>
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                            {eq.tiempo_produccion_horas.toFixed(1)} h
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: eq.tiempo_detencion_horas > 0 ? '#f87171' : 'inherit' }}>
-                            {eq.tiempo_detencion_horas.toFixed(1)} h
-                          </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                            {eq.tiempo_operativo_horas.toFixed(1)} h
+                            {eq.horas_disponibles.toFixed(1)} h
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: eq.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                            {eq.horas_mantencion.toFixed(1)} h
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                            {eq.total_horas.toFixed(1)} h
                           </td>
                           <td>
                             <div className="disp-progress-wrap">
@@ -525,10 +527,10 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                     <th>Fecha</th>
                     <th>Equipo</th>
                     <th>Turno</th>
-                    <th style={{ textAlign: 'right' }}>Horas Prod.</th>
-                    <th style={{ textAlign: 'right' }}>Horas Det.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Disp.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Mant.</th>
                     <th>Disponibilidad</th>
-                    <th>Motivo de Detención / Parada</th>
+                    <th>Motivo de Mantención / Parada</th>
                     <th>Observaciones</th>
                     <th style={{ textAlign: 'right' }}>Acción</th>
                   </tr>
@@ -543,6 +545,9 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                   ) : (
                     registrosFiltrados.map((r) => {
                       const pctClass = getPctClass(r.disponibilidad_pct)
+                      const hDisp = Number(r.horas_disponibles !== undefined ? r.horas_disponibles : r.tiempo_produccion_horas) || 0
+                      const hMant = Number(r.horas_mantencion !== undefined ? r.horas_mantencion : r.tiempo_detencion_horas) || 0
+
                       return (
                         <tr key={r.id}>
                           <td>{r.fecha}</td>
@@ -553,11 +558,11 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <td>
                             <span className="mp-badge-tag">{r.turno || 'Turno 1'}</span>
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                            {Number(r.tiempo_produccion_horas || 0).toFixed(1)} h
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
+                            {hDisp.toFixed(1)} h
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: r.tiempo_detencion_horas > 0 ? '#f87171' : 'inherit' }}>
-                            {Number(r.tiempo_detencion_horas || 0).toFixed(1)} h
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: hMant > 0 ? '#f87171' : 'inherit' }}>
+                            {hMant.toFixed(1)} h
                           </td>
                           <td>
                             <span style={{ fontWeight: 700 }} className={`disp-kpi-value ${pctClass}`}>
@@ -642,7 +647,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                         {importFile ? importFile.name : 'Haz clic para seleccionar o arrastra la planilla Excel de producción'}
                       </p>
                       <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                        Archivos compatibles: .xlsx o .xls con columnas de fecha, equipo y tiempos
+                        Archivos compatibles: .xlsx o .xls con Horas disponibles y Horas en mantención
                       </span>
                     </div>
                   </div>
@@ -654,9 +659,9 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>¿No tienes el formato exacto?</span>
+                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>¿Deseas usar la plantilla con la fórmula oficial?</span>
                     <button type="button" className="disp-btn-secondary" onClick={handleDescargarPlantilla}>
-                      <Icon n="doc" size="1em" /> Descargar Plantilla de Ejemplo
+                      <Icon n="doc" size="1em" /> Descargar Plantilla Oficial
                     </button>
                   </div>
                 </>
@@ -682,9 +687,9 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                         <tr>
                           <th>Fecha</th>
                           <th>Equipo</th>
-                          <th style={{ textAlign: 'right' }}>Prod (h)</th>
-                          <th style={{ textAlign: 'right' }}>Det (h)</th>
-                          <th>Disp. Calculada</th>
+                          <th style={{ textAlign: 'right' }}>Horas Disp.</th>
+                          <th style={{ textAlign: 'right' }}>Horas Mant.</th>
+                          <th>Disponibilidad</th>
                           <th>Motivo</th>
                         </tr>
                       </thead>
@@ -693,9 +698,9 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <tr key={idx}>
                             <td>{f.fecha}</td>
                             <td>{f.nombre_equipo}</td>
-                            <td style={{ textAlign: 'right' }}>{f.tiempo_produccion_horas} h</td>
-                            <td style={{ textAlign: 'right', color: f.tiempo_detencion_horas > 0 ? '#f87171' : 'inherit' }}>
-                              {f.tiempo_detencion_horas} h
+                            <td style={{ textAlign: 'right', color: '#34d399' }}>{f.horas_disponibles} h</td>
+                            <td style={{ textAlign: 'right', color: f.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                              {f.horas_mantencion} h
                             </td>
                             <td>
                               <span style={{ fontWeight: 700 }} className={`disp-kpi-value ${getPctClass(f.disponibilidad_pct)}`}>
