@@ -23,6 +23,9 @@ Conexión directa habilitada para que el asistente aplique migraciones, esquemas
 3. **Inventario General de Repuestos:** Stock, retiros, movimientos y valorización.
 4. **Compras:** Solicitudes, cotizaciones y proveedores.
 5. **Mantenimiento Preventivo:** Planes por equipo (Extrusoras M1 a M5 con 95 tareas oficiales), captura de evidencias (foto/video) e historial cronológico.
+6. **KPI de Disponibilidad Operacional:** Consolidación de disponibilidad a partir de planillas de producción con la fórmula oficial:
+   $$\text{Disponibilidad} = \frac{\text{Horas disponibles}}{\text{Horas disponibles} + \text{Horas en mantenci\acute{o}n}} \times 100$$
+   Incluye importador inteligente de Excel (`.xlsx`), cálculo fila a fila y dashboard interactivo por máquina y fecha.
 
 ## Reglas Obligatorias en cada Tarea / Cambio
 1. **Sincronización automática con GitHub:** Cada vez que se realice y verifique cualquier cambio, mejora, corrección o funcionalidad nueva en el proyecto, se debe:
