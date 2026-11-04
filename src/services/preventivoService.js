@@ -224,3 +224,4 @@ export async function registrarEjecucion({
     advertenciaSql: !dbOk ? 'Guardado localmente. La base de datos requiere ejecutar el script deploy/sql/30_mantenimiento_preventivo.sql' : null,
   }
 }
+
