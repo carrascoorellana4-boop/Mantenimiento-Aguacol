@@ -3,6 +3,7 @@ import {
   Landmark, Factory, Droplets, Search, X, ChevronDown, ChevronRight, Zap, FolderOpen, Check, Pencil, Clock,
   TriangleAlert, RefreshCw, ShieldCheck, Ruler, Hourglass, Ban, CircleCheck, Timer, Cog, Snowflake, Handshake,
   FileText, Files, BookMarked, Tag, CreditCard, Banknote, PartyPopper, CalendarDays, User, Target,
+  CalendarCheck, Camera, Video, Eye, Upload, ChevronLeft,
 } from 'lucide-react'
 
 // Un solo lugar para los íconos de la app: nombre -> componente (trazo uniforme, hereda color y tamaño del texto).
@@ -14,6 +15,7 @@ const ICONS = {
   ruler: Ruler, wait: Hourglass, ban: Ban, done: CircleCheck, timer: Timer, gear: Cog, snow: Snowflake,
   link: Handshake, doc: FileText, docs: Files, manual: BookMarked, tag: Tag, card: CreditCard, money: Banknote,
   party: PartyPopper, calendar: CalendarDays, user: User, target: Target,
+  'calendar-check': CalendarCheck, camera: Camera, video: Video, eye: Eye, upload: Upload, left: ChevronLeft,
 }
 
 // Los datos del árbol de activos traían un emoji por área: se aceptan y se traducen al ícono equivalente.

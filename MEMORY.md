@@ -13,3 +13,4 @@
    - Ejecutar `git push origin main` inmediatamente al repositorio remoto.
 2. **Seguridad y exclusiones:**
    - Jamás comitear ni subir claves, tokens, `.env*`, `.xlsx`, `backup/` ni archivos temporales.
+

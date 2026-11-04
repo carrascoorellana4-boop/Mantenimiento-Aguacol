@@ -1,15 +1,45 @@
-// Gestión de usuarios para administradores. Verifica el JWT del que llama (debe tener rol mant_admin) y recién entonces
-// usa la clave de servicio contra GoTrue, que nunca sale del servidor. Sin dependencias.
+// Gestión de usuarios y almacenamiento de evidencias para administradores.
+// Verifica el JWT del que llama y opera de forma segura sin dependencias externas.
 import http from 'node:http'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 
-const { JWT_SECRET, SERVICE_KEY, GOTRUE = 'http://127.0.0.1:9999', PORT = '3200' } = process.env
+const { JWT_SECRET, SERVICE_KEY, GOTRUE = 'http://127.0.0.1:9999', PORT = '3200', EVIDENCIAS_DIR = '/data/evidencias' } = process.env
 if (!JWT_SECRET || !SERVICE_KEY) { console.error('Faltan JWT_SECRET o SERVICE_KEY'); process.exit(1) }
+
+// Asegurar directorio local de evidencias
+const targetEvidenciasDir = fs.existsSync(EVIDENCIAS_DIR) ? EVIDENCIAS_DIR : path.resolve('./data/evidencias')
+try {
+  fs.mkdirSync(targetEvidenciasDir, { recursive: true })
+} catch (e) {
+  console.warn('No se pudo crear carpeta de evidencias inicial:', e.message)
+}
 
 const ADMIN = 'mant_admin'
 const VIEWER = 'mant_authenticated'
 const b64 = (s) => Buffer.from(s, 'base64url')
 const EMAIL_OK = /^[a-z0-9][a-z0-9._-]*@aguacol\.cl$/
+
+const MIME_MAP = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime'
+}
+
+const EXT_FROM_MIME = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov'
+}
 
 function verificar(token) {
   const p = String(token || '').split('.')
@@ -24,7 +54,7 @@ function verificar(token) {
   } catch { return null }
 }
 
-const gotrue = (path, init = {}) => fetch(`${GOTRUE}${path}`, {
+const gotrue = (pathUrl, init = {}) => fetch(`${GOTRUE}${pathUrl}`, {
   ...init, headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
 })
 const publico = (u) => ({ id: u.id, email: u.email, role: u.role === ADMIN ? 'admin' : 'viewer', created_at: u.created_at, last_sign_in_at: u.last_sign_in_at })
@@ -36,7 +66,7 @@ async function listar() {
   return (d.users || []).map(publico).sort((a, b) => a.email.localeCompare(b.email))
 }
 
-async function manejar(req, body, yo) {
+async function manejarUsers(req, body, yo) {
   const m = req.url.split('?')[0].match(/^\/api\/users(?:\/([0-9a-f-]{36}))?$/)
   if (!m) return [404, { error: 'No existe.' }]
   const id = m[1]
@@ -86,14 +116,109 @@ async function manejar(req, body, yo) {
 
 http.createServer(async (req, res) => {
   const send = (c, o) => { res.writeHead(c, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)) }
+  const urlPath = req.url.split('?')[0]
+
   try {
-    const yo = verificar((req.headers.authorization || '').replace(/^Bearer /, ''))
+    // -------------------------------------------------------------
+    // 1. ENDPOINT PARA DESCARGAR / VISUALIZAR EVIDENCIA
+    // -------------------------------------------------------------
+    const mEvid = urlPath.match(/^\/api\/evidencias\/([a-zA-Z0-9_-]+\.[a-zA-Z0-9]{3,4})$/)
+    if (req.method === 'GET' && mEvid) {
+      const filename = mEvid[1]
+      // Prevención de path traversal estricta
+      if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return send(400, { error: 'Nombre de archivo no válido.' })
+      }
+      const ext = path.extname(filename).toLowerCase()
+      const mime = MIME_MAP[ext] || 'application/octet-stream'
+      const filePath = path.join(targetEvidenciasDir, filename)
+
+      if (!fs.existsSync(filePath)) {
+        return send(404, { error: 'Evidencia no encontrada.' })
+      }
+
+      const stat = fs.statSync(filePath)
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Content-Length': stat.size,
+        'Cache-Control': 'public, max-age=86400',
+        'X-Content-Type-Options': 'nosniff'
+      })
+      const stream = fs.createReadStream(filePath)
+      return stream.pipe(res)
+    }
+
+    // -------------------------------------------------------------
+    // VALIDACIÓN DE SESIÓN JWT PARA ACCIONES DE ESCRITURA Y USERS
+    // -------------------------------------------------------------
+    const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /, '')
+    const yo = verificar(tokenHeader)
     if (!yo) return send(401, { error: 'Sesión inválida o vencida.' })
-    if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores.' })
-    let raw = ''
-    for await (const c of req) { raw += c; if (raw.length > 20000) return send(413, { error: 'Muy grande.' }) }
-    const body = raw ? JSON.parse(raw) : {}
-    const [c, o] = await manejar(req, body, yo)
-    send(c, o)
-  } catch (e) { console.error(e); send(500, { error: 'Error interno.' }) }
-}).listen(Number(PORT), '127.0.0.1', () => console.log('usermgr en', PORT))
+
+    // -------------------------------------------------------------
+    // 2. ENDPOINT PARA SUBIR EVIDENCIA (FOTO O VIDEO)
+    // -------------------------------------------------------------
+    if (urlPath === '/api/evidencias/upload' || urlPath === '/api/evidencias') {
+      if (req.method !== 'POST') return send(405, { error: 'Método no permitido.' })
+      if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores pueden registrar evidencias.' })
+
+      const rawMime = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim().toLowerCase()
+      const ext = EXT_FROM_MIME[rawMime]
+      if (!ext) {
+        return send(400, { error: `Tipo de archivo no permitido (${rawMime}). Solo se permiten imágenes (jpg, png, webp) y videos (mp4, webm, mov).` })
+      }
+
+      const MAX_SIZE = 35 * 1024 * 1024 // 35 MB
+      const chunks = []
+      let totalSize = 0
+
+      for await (const chunk of req) {
+        totalSize += chunk.length
+        if (totalSize > MAX_SIZE) {
+          return send(413, { error: 'El archivo excede el límite máximo de 35 MB.' })
+        }
+        chunks.push(chunk)
+      }
+
+      if (totalSize === 0) {
+        return send(400, { error: 'Archivo vacío.' })
+      }
+
+      const fileBuffer = Buffer.concat(chunks)
+      const uniqueId = crypto.randomUUID()
+      const safeFilename = `${uniqueId}${ext}`
+      const finalPath = path.join(targetEvidenciasDir, safeFilename)
+
+      fs.writeFileSync(finalPath, fileBuffer)
+
+      const origName = decodeURIComponent(req.headers['x-file-name'] || safeFilename)
+      const fileType = req.headers['x-file-type'] || (rawMime.startsWith('video/') ? 'Video' : 'Foto')
+
+      return send(201, {
+        ok: true,
+        archivo_path: `/api/evidencias/${safeFilename}`,
+        nombre_archivo: origName,
+        mime_type: rawMime,
+        tipo: fileType,
+        tamano: totalSize
+      })
+    }
+
+    // -------------------------------------------------------------
+    // 3. ENDPOINTS DE GESTIÓN DE USUARIOS
+    // -------------------------------------------------------------
+    if (urlPath.startsWith('/api/users')) {
+      if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores.' })
+      let raw = ''
+      for await (const c of req) { raw += c; if (raw.length > 20000) return send(413, { error: 'Muy grande.' }) }
+      const body = raw ? JSON.parse(raw) : {}
+      const [c, o] = await manejarUsers(req, body, yo)
+      return send(c, o)
+    }
+
+    return send(404, { error: 'Ruta no encontrada.' })
+  } catch (e) {
+    console.error('Error en server.mjs:', e)
+    return send(500, { error: 'Error interno del servidor.' })
+  }
+}).listen(Number(PORT), '127.0.0.1', () => console.log('usermgr y evidencias escuchando en', PORT))

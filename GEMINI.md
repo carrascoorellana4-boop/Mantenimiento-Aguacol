@@ -17,3 +17,4 @@
   - Tokens, sesiones o credenciales (`scratch/*.json`, `scratch/*.txt`, `scratch/*.mjs` con llaves hardcodeadas).
   - La carpeta de respaldos `backup/` y archivos `.zip`.
 - Solo deben versionarse archivos de código fuente (`src/`), configuración pública, documentación (`*.md`) y scripts SQL del esquema.
+

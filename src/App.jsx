@@ -13,6 +13,7 @@ import Icon from './components/Icon'
 import LoginView from './components/LoginView'
 import UpdateBanner from './components/UpdateBanner'
 import UsuariosView from './components/UsuariosView'
+import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
@@ -2764,6 +2765,16 @@ function App() {
               <li>
                 <button
                   type="button"
+                  className={`nav-item ${activeView === 'mantenimiento-preventivo' ? 'active' : ''}`}
+                  onClick={() => setActiveView('mantenimiento-preventivo')}
+                >
+                  <span className="nav-item-icon"><Icon n="calendar-check" /></span>
+                  <span>Mantenimiento Preventivo</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
                   className={`nav-item ${activeView === 'bitacora' ? 'active' : ''}`}
                   onClick={() => {
                     setBitacoraSuccessMessage('')
@@ -3040,6 +3051,33 @@ function App() {
                     <h3 className="home-card-title">Compras</h3>
                     <p className="home-card-desc">
                       Solicitudes, cotizaciones, órdenes de compra, proveedores y seguimiento de adquisiciones.
+                    </p>
+                  </div>
+                  <div className="home-card-footer">
+                    <span className="home-card-action">
+                      Ingresar <span className="arrow">→</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. MANTENIMIENTO PREVENTIVO */}
+                <div
+                  className="home-module-card card-active-module"
+                  onClick={() => setActiveView('mantenimiento-preventivo')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('mantenimiento-preventivo')}
+                >
+                  <div className="home-card-header">
+                    <div className="home-card-icon-wrap icon-preventivo">
+                      <span className="home-card-icon"><Icon n="calendar-check" /></span>
+                    </div>
+                    <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
+                  </div>
+                  <div className="home-card-body">
+                    <h3 className="home-card-title">Mantenimiento Preventivo</h3>
+                    <p className="home-card-desc">
+                      Planificación, ejecución y seguimiento del mantenimiento preventivo de equipos.
                     </p>
                   </div>
                   <div className="home-card-footer">
@@ -4589,6 +4627,14 @@ function App() {
         )}
 
         {activeView === 'usuarios' && isAdmin && <UsuariosView session={session} />}
+
+        {activeView === 'mantenimiento-preventivo' && (
+          <MantenimientoPreventivoView
+            session={session}
+            isAdmin={isAdmin}
+            onBack={() => setActiveView('home')}
+          />
+        )}
 
         {/* VISTA 4: Inicio de Sesión */}
         {activeView === 'login' && (
