@@ -28,3 +28,7 @@ dist-ssr
 *.xlsx
 scratch/*
 !scratch/*.sql
+
+# Respaldos de base de datos (no subir)
+backup/
+backup_sistema_mantenimiento.zip
