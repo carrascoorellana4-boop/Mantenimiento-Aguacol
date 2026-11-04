@@ -14,6 +14,7 @@ import LoginView from './components/LoginView'
 import UpdateBanner from './components/UpdateBanner'
 import UsuariosView from './components/UsuariosView'
 import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
+import DisponibilidadKpiView from './components/DisponibilidadKpiView'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
@@ -2775,6 +2776,16 @@ function App() {
               <li>
                 <button
                   type="button"
+                  className={`nav-item ${activeView === 'disponibilidad' ? 'active' : ''}`}
+                  onClick={() => setActiveView('disponibilidad')}
+                >
+                  <span className="nav-item-icon"><Icon n="chart" /></span>
+                  <span>Disponibilidad KPI</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
                   className={`nav-item ${activeView === 'bitacora' ? 'active' : ''}`}
                   onClick={() => {
                     setBitacoraSuccessMessage('')
@@ -3078,6 +3089,33 @@ function App() {
                     <h3 className="home-card-title">Mantenimiento Preventivo</h3>
                     <p className="home-card-desc">
                       Planificación, ejecución y seguimiento del mantenimiento preventivo de equipos.
+                    </p>
+                  </div>
+                  <div className="home-card-footer">
+                    <span className="home-card-action">
+                      Ingresar <span className="arrow">→</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6. KPI DE DISPONIBILIDAD */}
+                <div
+                  className="home-module-card card-active-module"
+                  onClick={() => setActiveView('disponibilidad')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('disponibilidad')}
+                >
+                  <div className="home-card-header">
+                    <div className="home-card-icon-wrap icon-disponibilidad">
+                      <span className="home-card-icon"><Icon n="chart" /></span>
+                    </div>
+                    <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
+                  </div>
+                  <div className="home-card-body">
+                    <h3 className="home-card-title">KPI de Disponibilidad</h3>
+                    <p className="home-card-desc">
+                      Consolidación de tiempos de producción, detenciones por falla o mantenimiento y cálculo de disponibilidad por activo.
                     </p>
                   </div>
                   <div className="home-card-footer">
@@ -4632,6 +4670,15 @@ function App() {
           <MantenimientoPreventivoView
             session={session}
             isAdmin={isAdmin}
+            onBack={() => setActiveView('home')}
+          />
+        )}
+
+        {activeView === 'disponibilidad' && (
+          <DisponibilidadKpiView
+            session={session}
+            isAdmin={isAdmin}
+            equiposList={equiposList}
             onBack={() => setActiveView('home')}
           />
         )}

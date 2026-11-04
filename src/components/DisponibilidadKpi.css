@@ -1,0 +1,419 @@
+/* ==========================================================================
+   KPI DE DISPONIBILIDAD OPERACIONAL — AGUACOL ERP
+   Estilos con soporte glassmorphism, responsive y mobile-first
+   ========================================================================== */
+
+.disp-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+.disp-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.disp-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.disp-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.disp-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.disp-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+
+.disp-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.disp-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.disp-btn-primary:hover {
+  background: #0369a1;
+  transform: translateY(-1px);
+}
+
+.disp-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  color: #f1f5f9;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.disp-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Banner de Fórmula */
+.disp-formula-banner {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.disp-formula-text {
+  color: #e0f2fe;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.disp-formula-badge {
+  font-family: monospace;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #38bdf8;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Grilla de Tarjetas KPI */
+.disp-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.disp-kpi-card {
+  background: var(--card-bg, rgba(30, 41, 59, 0.5));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.disp-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.disp-kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.disp-kpi-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.disp-kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.disp-icon-disp {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.disp-icon-prod {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.disp-icon-det {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.disp-icon-neto {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.disp-kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-primary, #ffffff);
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.disp-kpi-value.optimo {
+  color: #34d399;
+}
+
+.disp-kpi-value.alerta {
+  color: #fbbf24;
+}
+
+.disp-kpi-value.critico {
+  color: #f87171;
+}
+
+.disp-kpi-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+
+/* Barra de Filtros */
+.disp-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.25rem;
+  background: var(--card-bg, rgba(30, 41, 59, 0.4));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+}
+
+.disp-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.disp-filter-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+.disp-filter-select,
+.disp-filter-input {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  color: var(--text-primary, #ffffff);
+  font-size: 0.85rem;
+}
+
+.disp-filter-select:focus,
+.disp-filter-input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+/* Tabs */
+.disp-tabs-bar {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  padding-bottom: 0.25rem;
+}
+
+.disp-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -0.25rem;
+}
+
+.disp-tab-btn:hover {
+  color: var(--text-primary, #ffffff);
+}
+
+.disp-tab-btn.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+}
+
+/* Tablas */
+.disp-table-container {
+  overflow-x: auto;
+  background: var(--card-bg, rgba(30, 41, 59, 0.4));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+}
+
+.disp-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.disp-table th {
+  padding: 0.85rem 1rem;
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.disp-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  color: var(--text-primary, #ffffff);
+  vertical-align: middle;
+}
+
+.disp-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Barra de progreso de disponibilidad */
+.disp-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 200px;
+}
+
+.disp-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.disp-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.disp-progress-fill.optimo {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.disp-progress-fill.alerta {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.disp-progress-fill.critico {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+/* Modal de importación */
+.disp-import-dropzone {
+  border: 2px dashed rgba(14, 165, 233, 0.4);
+  border-radius: 12px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(14, 165, 233, 0.04);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.disp-import-dropzone:hover {
+  background: rgba(14, 165, 233, 0.1);
+  border-color: #38bdf8;
+}
+
+.disp-dropzone-icon {
+  font-size: 2.5rem;
+  color: #38bdf8;
+}
+
+.disp-preview-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .disp-container {
+    padding: 1rem;
+  }
+  .disp-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
