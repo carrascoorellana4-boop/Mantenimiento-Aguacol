@@ -6,7 +6,11 @@ import {
   getTareasPorMaquina,
   getHistorialEjecuciones,
   subirEvidencia,
-  registrarEjecucion,
+  iniciarEjecucionTarea,
+  cerrarEjecucionTarea,
+  guardarProgresoTarea,
+  calcularHorasTurnoMantenimiento,
+  formatHorasTurno,
 } from '../services/preventivoService'
 
 const formatFechaHora = (val) => {
@@ -45,6 +49,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
 
   // Modal de ejecución
   const [ejecutarModalTarea, setEjecutarModalTarea] = useState(null)
+  const [activeEjecucion, setActiveEjecucion] = useState(null)
   const [observaciones, setObservaciones] = useState('')
   const [evidenciasAdjuntas, setEvidenciasAdjuntas] = useState([])
   const [uploadingMedia, setUploadingMedia] = useState(false)
@@ -90,6 +95,18 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
     }
   }, [selectedMaquina])
 
+  // Mapa de la última ejecución por tarea (para saber si está 'En curso', 'Realizada' o 'Pendiente')
+  const ejecucionesPorTarea = useMemo(() => {
+    const map = new Map()
+    for (const h of historial) {
+      const keyId = h.tarea_id
+      const keyNom = h.tarea?.tarea || h.tarea
+      if (keyId && !map.has(keyId)) map.set(keyId, h)
+      if (keyNom && !map.has(keyNom)) map.set(keyNom, h)
+    }
+    return map
+  }, [historial])
+
   // Lista de frecuencias únicas para el filtro
   const frecuenciasDisponibles = useMemo(() => {
     const s = new Set()
@@ -119,9 +136,16 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
 
   // Abrir modal de ejecución
   const handleOpenEjecutar = (tarea) => {
+    const ejec = ejecucionesPorTarea.get(tarea.id) || ejecucionesPorTarea.get(tarea.tarea) || null
     setEjecutarModalTarea(tarea)
-    setObservaciones('')
-    setEvidenciasAdjuntas([])
+    setActiveEjecucion(ejec)
+    setObservaciones(ejec?.observaciones || '')
+    setEvidenciasAdjuntas(
+      (ejec?.evidencias || []).map((ev) => ({
+        ...ev,
+        alreadySaved: true,
+      }))
+    )
     setConfirmStep(false)
     setErrorMsg('')
   }
@@ -130,9 +154,94 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
   const handleCloseEjecutar = () => {
     if (savingEjecucion || uploadingMedia) return
     setEjecutarModalTarea(null)
+    setActiveEjecucion(null)
     setObservaciones('')
     setEvidenciasAdjuntas([])
     setConfirmStep(false)
+  }
+
+  // Iniciar tarea preventiva (registra automáticamente la hora de comienzo)
+  const handleIniciarTarea = async () => {
+    if (!ejecutarModalTarea || !selectedMaquina) return
+
+    setSavingEjecucion(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    try {
+      const res = await iniciarEjecucionTarea({
+        tarea: ejecutarModalTarea,
+        codigo_equipo: selectedMaquina.codigo,
+        session,
+      })
+
+      setActiveEjecucion(res.ejecucion)
+      setSuccessMsg('Tarea preventiva iniciada. Hora de comienzo registrada automáticamente.')
+
+      // Recargar historial
+      const updatedHist = await getHistorialEjecuciones(selectedMaquina.codigo)
+      setHistorial(updatedHist.ejecuciones || [])
+    } catch (err) {
+      setErrorMsg('Error al iniciar tarea: ' + (err?.message || err))
+    } finally {
+      setSavingEjecucion(false)
+    }
+  }
+
+  // Guardar avance intermedio (fotos/notas) sin cerrar la tarea
+  const handleGuardarAvance = async () => {
+    if (!activeEjecucion) return
+    setSavingEjecucion(true)
+    setErrorMsg('')
+    try {
+      await guardarProgresoTarea({
+        ejecucionId: activeEjecucion.id,
+        observaciones,
+        evidencias: evidenciasAdjuntas,
+      })
+      setSuccessMsg('Avance de tarea guardado correctamente.')
+      const updatedHist = await getHistorialEjecuciones(selectedMaquina.codigo)
+      setHistorial(updatedHist.ejecuciones || [])
+    } catch (err) {
+      setErrorMsg('Error al guardar avance: ' + (err?.message || err))
+    } finally {
+      setSavingEjecucion(false)
+    }
+  }
+
+  // Cerrar y finalizar tarea (registra automáticamente la hora de cierre)
+  const handleCerrarTarea = async () => {
+    if (!activeEjecucion || !selectedMaquina) return
+
+    setSavingEjecucion(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    try {
+      const res = await cerrarEjecucionTarea({
+        ejecucionId: activeEjecucion.id,
+        tarea: ejecutarModalTarea,
+        codigo_equipo: selectedMaquina.codigo,
+        fecha_hora_inicio: activeEjecucion.fecha_hora_inicio,
+        observaciones,
+        evidencias: evidenciasAdjuntas,
+        session,
+      })
+
+      setSuccessMsg(
+        `¡Tarea preventiva finalizada con éxito! Hora de cierre registrada. Tiempo efectivo en turno: ${formatHorasTurno(res.horasEfectivas)}.`
+      )
+
+      const updatedHist = await getHistorialEjecuciones(selectedMaquina.codigo)
+      setHistorial(updatedHist.ejecuciones || [])
+
+      handleCloseEjecutar()
+      setActiveTab('historial')
+    } catch (err) {
+      setErrorMsg('Error al finalizar tarea: ' + (err?.message || err))
+    } finally {
+      setSavingEjecucion(false)
+    }
   }
 
   // Manejar subida o captura de archivo (Foto / Video)
@@ -151,7 +260,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
         evidenciaSubida = await subirEvidencia(file, token)
       } catch (uploadErr) {
         console.warn('Fallo upload al servidor, creando preview local:', uploadErr)
-        // Fallback local con Blob URL para no interrumpir el trabajo de campo
         const localUrl = URL.createObjectURL(file)
         evidenciaSubida = {
           url: localUrl,
@@ -175,57 +283,19 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
           tamano_bytes: file.size,
           mime_type: file.type,
           isLocalBlob: !!evidenciaSubida.isLocalBlob,
+          alreadySaved: false,
         },
       ])
     } catch (err) {
       setErrorMsg('No se pudo procesar el archivo: ' + (err?.message || err))
     } finally {
       setUploadingMedia(false)
-      // Limpiar input para permitir seleccionar el mismo archivo nuevamente si se desea
       e.target.value = ''
     }
   }
 
-  // Eliminar evidencia antes de guardar
   const handleRemoveEvidencia = (id) => {
     setEvidenciasAdjuntas((prev) => prev.filter((item) => item.id !== id))
-  }
-
-  // Confirmar y registrar la ejecución
-  const handleConfirmarEjecucion = async () => {
-    if (!ejecutarModalTarea || !selectedMaquina) return
-
-    setSavingEjecucion(true)
-    setErrorMsg('')
-    setSuccessMsg('')
-
-    try {
-      const res = await registrarEjecucion({
-        tarea: ejecutarModalTarea,
-        codigo_equipo: selectedMaquina.codigo,
-        observaciones,
-        estado: 'Realizada',
-        evidencias: evidenciasAdjuntas,
-        session,
-      })
-
-      if (res.advertenciaSql) {
-        setSuccessMsg(`Ejecución registrada exitosamente. Nota: ${res.advertenciaSql}`)
-      } else {
-        setSuccessMsg('¡Tarea preventiva ejecutada y registrada exitosamente!')
-      }
-
-      // Actualizar historial local inmediatamente
-      const updatedHist = await getHistorialEjecuciones(selectedMaquina.codigo)
-      setHistorial(updatedHist.ejecuciones || [])
-
-      handleCloseEjecutar()
-      setActiveTab('historial')
-    } catch (err) {
-      setErrorMsg('Error al guardar ejecución: ' + (err?.message || err))
-    } finally {
-      setSavingEjecucion(false)
-    }
   }
 
   return (
@@ -267,7 +337,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
         </div>
         <p className="mp-subtitle">
           {selectedMaquina
-            ? `${selectedMaquina.nombre} (${selectedMaquina.codigo}) • Registro y trazabilidad de rutinas operativas.`
+            ? `${selectedMaquina.nombre} (${selectedMaquina.codigo}) • Registro automático de horas de comienzo, cierre y horas efectivas de turno.`
             : 'Planificación, ejecución y seguimiento de actividades preventivas por equipo.'}
         </p>
       </header>
@@ -393,45 +463,88 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                     <table className="mp-table">
                       <thead>
                         <tr>
-                          <th style={{ width: '45%' }}>Tarea</th>
-                          <th style={{ width: '20%' }}>Frecuencia</th>
-                          <th style={{ width: '20%' }}>Responsable</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Acción</th>
+                          <th style={{ width: '40%' }}>Tarea</th>
+                          <th style={{ width: '18%' }}>Frecuencia</th>
+                          <th style={{ width: '18%' }}>Responsable</th>
+                          <th style={{ width: '12%' }}>Estado</th>
+                          <th style={{ width: '12%', textAlign: 'right' }}>Acción</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredTareas.length === 0 ? (
                           <tr>
-                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                            <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
                               No se encontraron tareas con los filtros aplicados.
                             </td>
                           </tr>
                         ) : (
-                          filteredTareas.map((item, idx) => (
-                            <tr key={item.id || `${item.codigo_equipo}-${idx}`}>
-                              <td>
-                                <div className="mp-task-title">{item.tarea}</div>
-                                {item.sistema && (
-                                  <span className="mp-task-system">Sistema: {item.sistema}</span>
-                                )}
-                              </td>
-                              <td>
-                                <span className="mp-frec-badge">{item.frecuencia}</span>
-                              </td>
-                              <td>
-                                <span className="mp-resp-badge">{item.responsable}</span>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <button
-                                  type="button"
-                                  className="mp-btn-execute"
-                                  onClick={() => handleOpenEjecutar(item)}
-                                >
-                                  <Icon n="check" size="0.9em" /> Ejecutar
-                                </button>
-                              </td>
-                            </tr>
-                          ))
+                          filteredTareas.map((item, idx) => {
+                            const ejec = ejecucionesPorTarea.get(item.id) || ejecucionesPorTarea.get(item.tarea)
+                            const isEnCurso = ejec?.estado === 'En curso'
+                            const isRealizada = ejec?.estado === 'Realizada'
+
+                            return (
+                              <tr key={item.id || `${item.codigo_equipo}-${idx}`}>
+                                <td>
+                                  <div className="mp-task-title">{item.tarea}</div>
+                                  {item.sistema && (
+                                    <span className="mp-task-system">Sistema: {item.sistema}</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className="mp-frec-badge">{item.frecuencia}</span>
+                                </td>
+                                <td>
+                                  <span className="mp-resp-badge">{item.responsable}</span>
+                                </td>
+                                <td>
+                                  {isEnCurso ? (
+                                    <span className="mp-status-pill encurso" title="Tarea iniciada por técnico">
+                                      <Icon n="clock" size="0.85em" /> En curso
+                                    </span>
+                                  ) : isRealizada ? (
+                                    <span className="mp-status-pill realizada">
+                                      <Icon n="check" size="0.85em" /> Realizada
+                                    </span>
+                                  ) : (
+                                    <span className="mp-status-pill pendiente">
+                                      Pendiente
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {isEnCurso ? (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-execute"
+                                      style={{ background: '#f59e0b' }}
+                                      onClick={() => handleOpenEjecutar(item)}
+                                      title="Tarea en curso: ingresar a continuar o cerrar"
+                                    >
+                                      <Icon n="clock" size="0.9em" /> Continuar
+                                    </button>
+                                  ) : isRealizada ? (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-execute"
+                                      style={{ background: '#0284c7' }}
+                                      onClick={() => handleOpenEjecutar(item)}
+                                    >
+                                      <Icon n="check" size="0.9em" /> Ver / Reejecutar
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="mp-btn-execute"
+                                      onClick={() => handleOpenEjecutar(item)}
+                                    >
+                                      <Icon n="plus" size="0.9em" /> Iniciar
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })
                         )}
                       </tbody>
                     </table>
@@ -458,35 +571,71 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                         No hay ejecuciones registradas para {selectedMaquina.nombre}.
                       </p>
                       <span style={{ fontSize: '0.85rem' }}>
-                        Selecciona una tarea de la pestaña &quot;Plan preventivo&quot; para registrar su primera ejecución con evidencias.
+                        Selecciona una tarea de la pestaña &quot;Plan preventivo&quot; para iniciar la ejecución y registrar los tiempos de turno.
                       </span>
                     </div>
                   ) : (
                     historial.map((ej) => {
                       const tareaTexto =
-                        ej.tarea?.tarea || ej.tarea_nombre || 'Mantenimiento Preventivo Ejecutado'
-                      const frecTexto = ej.tarea?.frecuencia || 'Preventivo'
+                        ej.tarea?.tarea || ej.tarea_nombre || ej.tarea || 'Mantenimiento Preventivo Ejecutado'
+                      const frecTexto = ej.tarea?.frecuencia || ej.frecuencia || 'Preventivo'
                       const evidencias = ej.evidencias || []
+                      const horasEfectivas = ej.horas_efectivas_turno || calcularHorasTurnoMantenimiento(ej.fecha_hora_inicio || ej.fecha_ejecucion, ej.fecha_hora_cierre || new Date())
 
                       return (
                         <div key={ej.id} className="mp-history-card">
                           <div className="mp-history-header">
                             <span className="mp-history-date">
-                              <Icon n="calendar" size="0.9em" /> {formatFechaHora(ej.fecha_ejecucion)}
+                              <Icon n="calendar" size="0.9em" /> {formatFechaHora(ej.fecha_hora_inicio || ej.fecha_ejecucion)}
                             </span>
-                            <span className="mp-badge-tag" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                              <Icon n="done" size="0.9em" /> {ej.estado || 'Realizada'}
+                            <span
+                              className={`mp-status-pill ${
+                                ej.estado === 'En curso' ? 'encurso' : 'realizada'
+                              }`}
+                            >
+                              <Icon n={ej.estado === 'En curso' ? 'clock' : 'done'} size="0.9em" />
+                              {ej.estado || 'Realizada'}
                             </span>
                           </div>
 
                           <h4 className="mp-history-task">{tareaTexto}</h4>
 
+                          {/* RECUADRO DE HORARIOS Y TIEMPOS DE TURNO EN HISTORIAL */}
+                          <div className="mp-timer-box" style={{ padding: '0.75rem 1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                              <div>
+                                <span className="mp-timer-label">Hora de Comienzo</span>
+                                <div style={{ color: '#ffffff', fontSize: '0.85rem', fontWeight: 600 }}>
+                                  {formatFechaHora(ej.fecha_hora_inicio || ej.fecha_ejecucion)}
+                                </div>
+                              </div>
+
+                              <div>
+                                <span className="mp-timer-label">Hora de Cierre</span>
+                                <div style={{ color: '#ffffff', fontSize: '0.85rem', fontWeight: 600 }}>
+                                  {ej.fecha_hora_cierre ? formatFechaHora(ej.fecha_hora_cierre) : 'En ejecución'}
+                                </div>
+                              </div>
+
+                              <div>
+                                <span className="mp-timer-label">Tiempo Computable en Turno</span>
+                                <div style={{ color: '#38bdf8', fontSize: '0.9rem', fontWeight: 700 }}>
+                                  {formatHorasTurno(horasEfectivas)}
+                                </div>
+                              </div>
+
+                              <div>
+                                <span className="mp-timer-label">Técnico / Responsable</span>
+                                <div style={{ color: '#ffffff', fontSize: '0.85rem', fontWeight: 600 }}>
+                                  {ej.tecnico_nombre || ej.ejecutado_por_email || 'Técnico Mantenimiento'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
                           <div className="mp-history-meta">
                             <span>
                               <strong>Frecuencia:</strong> {frecTexto}
-                            </span>
-                            <span>
-                              <strong>Registrado por:</strong> {ej.ejecutado_por_email || 'Operador'}
                             </span>
                             {evidencias.length > 0 && (
                               <span>
@@ -540,7 +689,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
       )}
 
       {/* =========================================================================
-          MODAL 1: EJECUTAR TAREA PREVENTIVA
+          MODAL 1: EJECUTAR TAREA PREVENTIVA CON CONTROL DE TIEMPO
          ========================================================================= */}
       {ejecutarModalTarea && (
         <div
@@ -553,7 +702,11 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
             <div className="mp-modal-header">
               <h2 id="mp-modal-title" className="mp-modal-title">
                 <Icon n="calendar-check" size="1.2em" />
-                {confirmStep ? 'Confirmar Ejecución' : 'Ejecutar Tarea Preventiva'}
+                {activeEjecucion?.estado === 'En curso'
+                  ? 'Tarea Preventiva en Ejecución'
+                  : activeEjecucion?.estado === 'Realizada'
+                  ? 'Detalle de Tarea Realizada'
+                  : 'Iniciar Tarea Preventiva'}
               </h2>
               <button
                 type="button"
@@ -593,17 +746,95 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                 </div>
               </div>
 
-              {!confirmStep ? (
+              {/* =================================================================
+                  RECUADRO DE HORARIOS Y CONTROL AUTOMÁTICO DE TIEMPO
+                 ================================================================= */}
+              <div className="mp-timer-box">
+                <div className="mp-timer-header">
+                  <h4 className="mp-timer-title">
+                    <Icon n="clock" /> Control Horario de Mantenimiento
+                  </h4>
+                  <span
+                    className={`mp-status-pill ${
+                      activeEjecucion?.estado === 'En curso'
+                        ? 'encurso'
+                        : activeEjecucion?.estado === 'Realizada'
+                        ? 'realizada'
+                        : 'pendiente'
+                    }`}
+                  >
+                    {activeEjecucion?.estado === 'En curso'
+                      ? 'En curso'
+                      : activeEjecucion?.estado === 'Realizada'
+                      ? 'Cerrada'
+                      : 'No iniciada'}
+                  </span>
+                </div>
+
+                <div className="mp-timer-grid">
+                  <div className="mp-timer-item">
+                    <span className="mp-timer-label">Hora de Comienzo</span>
+                    <span className="mp-timer-val">
+                      {activeEjecucion?.fecha_hora_inicio
+                        ? formatFechaHora(activeEjecucion.fecha_hora_inicio)
+                        : 'Automática al pulsar Iniciar'}
+                    </span>
+                  </div>
+
+                  <div className="mp-timer-item">
+                    <span className="mp-timer-label">Hora de Cierre</span>
+                    <span className={`mp-timer-val ${activeEjecucion?.estado === 'En curso' ? 'active' : ''}`}>
+                      {activeEjecucion?.fecha_hora_cierre
+                        ? formatFechaHora(activeEjecucion.fecha_hora_cierre)
+                        : activeEjecucion?.estado === 'En curso'
+                        ? 'En curso (se registrará al cerrar)'
+                        : 'Pendiente'}
+                    </span>
+                  </div>
+
+                  <div className="mp-timer-item">
+                    <span className="mp-timer-label">Tiempo Computable en Turno</span>
+                    <span className="mp-timer-val" style={{ color: '#38bdf8' }}>
+                      {activeEjecucion?.fecha_hora_inicio
+                        ? formatHorasTurno(
+                            activeEjecucion.horas_efectivas_turno ||
+                              calcularHorasTurnoMantenimiento(
+                                activeEjecucion.fecha_hora_inicio,
+                                activeEjecucion.fecha_hora_cierre || new Date()
+                              )
+                          )
+                        : '0 min'}
+                    </span>
+                  </div>
+
+                  <div className="mp-timer-item">
+                    <span className="mp-timer-label">Técnico Operador</span>
+                    <span className="mp-timer-val" style={{ fontSize: '0.9rem' }}>
+                      {activeEjecucion?.tecnico_nombre ||
+                        session?.user?.user_metadata?.nombre ||
+                        session?.user?.email?.split('@')[0] ||
+                        'Técnico Mantenimiento'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mp-timer-footer">
+                  <Icon n="shield" size="1.2em" />
+                  <span>
+                    <strong>Turnos computables AGUACOL:</strong> Lunes a Viernes 07:00 a 15:00 y 15:00 a 23:00 (16 hrs/día) | Sábados 04:00 a 09:00 (5 hrs). El tiempo se contabiliza únicamente dentro de estos intervalos aunque la tarea dure más de un día.
+                  </span>
+                </div>
+              </div>
+
+              {/* SECCIÓN EVIDENCIAS Y OBSERVACIONES (CUANDO ESTÁ EN CURSO O POR CERRAR) */}
+              {activeEjecucion?.estado === 'En curso' || !activeEjecucion ? (
                 <>
-                  {/* SECCIÓN EVIDENCIAS */}
                   <div className="mp-evidence-section">
                     <h3 className="mp-evidence-section-title">
-                      <Icon n="camera" size="1.1em" /> Evidencia de ejecución
+                      <Icon n="camera" size="1.1em" /> Evidencia de ejecución (Fotos y Videos)
                     </h3>
 
-                    {/* Botones de acción para cámara o subida de archivo */}
                     <div className="mp-upload-buttons-row">
-                      {/* 1. Foto con cámara */}
                       <button
                         type="button"
                         className="mp-btn-upload"
@@ -621,7 +852,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                         onChange={(e) => handleFileSelected(e, 'Foto')}
                       />
 
-                      {/* 2. Subir imagen */}
                       <button
                         type="button"
                         className="mp-btn-upload"
@@ -638,7 +868,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                         onChange={(e) => handleFileSelected(e, 'Foto')}
                       />
 
-                      {/* 3. Grabar video */}
                       <button
                         type="button"
                         className="mp-btn-upload"
@@ -656,7 +885,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                         onChange={(e) => handleFileSelected(e, 'Video')}
                       />
 
-                      {/* 4. Subir video */}
                       <button
                         type="button"
                         className="mp-btn-upload"
@@ -680,7 +908,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                       </p>
                     )}
 
-                    {/* Galería de evidencias adjuntas en este momento */}
                     {evidenciasAdjuntas.length > 0 && (
                       <div className="mp-attached-gallery">
                         {evidenciasAdjuntas.map((item) => (
@@ -704,7 +931,6 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                     )}
                   </div>
 
-                  {/* OBSERVACIONES */}
                   <div>
                     <label
                       htmlFor="mp-obs-input"
@@ -723,91 +949,118 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                       rows={3}
                       className="mp-search-input"
                       style={{ width: '100%', resize: 'vertical' }}
-                      placeholder="Indica cualquier novedad, nivel encontrado o ajuste realizado..."
+                      placeholder="Indica ajustes realizados, repuestos intervenidos o novedades de turno..."
                       value={observaciones}
                       onChange={(e) => setObservaciones(e.target.value)}
                     />
                   </div>
-
-                  {!isAdmin && !session && (
-                    <div className="notice-banner notice-banner-warning" style={{ margin: 0 }}>
-                      <Icon n="warn" />
-                      <span>Inicia sesión como administrador para registrar ejecuciones oficiales en el sistema.</span>
-                    </div>
-                  )}
                 </>
               ) : (
-                /* PANTALLA DE CONFIRMACIÓN PREVIA */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div
-                    style={{
-                      background: 'rgba(14, 165, 233, 0.1)',
-                      border: '1px solid rgba(14, 165, 233, 0.3)',
-                      borderRadius: '8px',
-                      padding: '1rem',
-                      color: '#f1f5f9',
-                    }}
-                  >
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem' }}>
-                      ¿Deseas confirmar la ejecución de esta tarea preventiva?
+                /* VISTA DE TAREA YA REALIZADA PREVIAMENTE */
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', color: '#38bdf8', margin: '0.5rem 0' }}>
+                    Evidencias registradas en esta ejecución:
+                  </h4>
+                  {evidenciasAdjuntas.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Sin evidencias adjuntas registradas.</p>
+                  ) : (
+                    <div className="mp-attached-gallery">
+                      {evidenciasAdjuntas.map((item) => (
+                        <div
+                          key={item.id}
+                          className="mp-attached-item"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setLightboxItem({ tipo: item.tipo, url: item.url, nombre: item.nombre_original })}
+                        >
+                          {item.tipo === 'Video' ? <video src={item.url} /> : <img src={item.url} alt="Evidencia" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {observaciones && (
+                    <p className="mp-history-comment" style={{ marginTop: '1rem' }}>
+                      <strong>Observaciones:</strong> {observaciones}
                     </p>
-                    <ul style={{ margin: '0.5rem 0 0 1.25rem', fontSize: '0.85rem', color: '#cbd5e1' }}>
-                      <li>Evidencias adjuntas: {evidenciasAdjuntas.length} archivo(s)</li>
-                      <li>Observaciones: {observaciones ? `"${observaciones}"` : 'Ninguna'}</li>
-                      <li>Operador / Usuario: {session?.user?.email || 'operador@aguacol.cl'}</li>
-                    </ul>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
 
+            {/* BOTONES DE ACCIÓN SEGÚN EL ESTADO DE LA TAREA */}
             <div className="mp-modal-footer">
-              {!confirmStep ? (
+              <button
+                type="button"
+                className="mp-btn-cancel"
+                onClick={handleCloseEjecutar}
+                disabled={savingEjecucion || uploadingMedia}
+              >
+                Cerrar Ventana
+              </button>
+
+              {/* CASO 1: NO INICIADA */}
+              {!activeEjecucion && (
+                <button
+                  type="button"
+                  className="mp-btn-confirm"
+                  style={{ background: '#10b981' }}
+                  onClick={handleIniciarTarea}
+                  disabled={savingEjecucion}
+                >
+                  {savingEjecucion ? (
+                    <>
+                      <Icon n="wait" size="1em" /> Iniciando...
+                    </>
+                  ) : (
+                    <>
+                      <Icon n="clock" size="1em" /> Iniciar Tarea (Registrar Comienzo)
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* CASO 2: EN CURSO */}
+              {activeEjecucion?.estado === 'En curso' && (
                 <>
                   <button
                     type="button"
                     className="mp-btn-cancel"
-                    onClick={handleCloseEjecutar}
-                    disabled={savingEjecucion || uploadingMedia}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="mp-btn-confirm"
-                    onClick={() => setConfirmStep(true)}
-                    disabled={uploadingMedia}
-                  >
-                    Continuar →
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="mp-btn-cancel"
-                    onClick={() => setConfirmStep(false)}
+                    style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+                    onClick={handleGuardarAvance}
                     disabled={savingEjecucion}
                   >
-                    ← Modificar
+                    Guardar Avance
                   </button>
                   <button
                     type="button"
                     className="mp-btn-confirm"
-                    onClick={handleConfirmarEjecucion}
+                    onClick={handleCerrarTarea}
                     disabled={savingEjecucion}
                   >
                     {savingEjecucion ? (
                       <>
-                        <Icon n="wait" size="1em" /> Guardando...
+                        <Icon n="wait" size="1em" /> Cerrando...
                       </>
                     ) : (
                       <>
-                        <Icon n="check" size="1em" /> Confirmar y Registrar
+                        <Icon n="check" size="1em" /> Cerrar Tarea (Registrar Cierre)
                       </>
                     )}
                   </button>
                 </>
+              )}
+
+              {/* CASO 3: YA REALIZADA */}
+              {activeEjecucion?.estado === 'Realizada' && (
+                <button
+                  type="button"
+                  className="mp-btn-confirm"
+                  onClick={handleIniciarTarea}
+                  disabled={savingEjecucion}
+                  title="Iniciar un nuevo ciclo preventivo para esta tarea"
+                >
+                  <Icon n="refresh" size="1em" /> Iniciar Nuevo Ciclo Preventivo
+                </button>
               )}
             </div>
           </div>
