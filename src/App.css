@@ -6343,3 +6343,279 @@
     font-size: 0.85rem;
   }
 }
+
+/* ==========================================================================
+   NUEVOS ESTILOS: SOLICITUD QR, CONDICIÓN DE LÍNEA, REPUESTOS Y TIEMPOS REALES
+   ========================================================================== */
+
+/* Badge distintivo de Origen Solicitud QR */
+.ot-card-origin-badge.origin-solicitudqr,
+.ot-card-origin-badge.origin-solicitud-qr {
+  background: rgba(14, 165, 233, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  font-weight: 700;
+}
+
+/* Fila de solicitante en la tarjeta OT */
+.ot-card-solicitante-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ot-card-solicitante-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Badges de condición operativa de línea */
+.ot-condicion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ot-condicion-badge.detenida {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.ot-condicion-badge.produciendo {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Badge de duración calculada */
+.ot-card-duracion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.12);
+  padding: 0.15rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Selector interactivo de condición de línea */
+.ot-condicion-selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.ot-condicion-options-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.ot-condicion-opt-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.ot-condicion-opt-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.ot-condicion-opt-card.selected-detenida {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.ot-condicion-opt-card.selected-produciendo {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+.ot-condicion-opt-card input[type="radio"] {
+  accent-color: #0284c7;
+  cursor: pointer;
+}
+
+.ot-condicion-opt-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.ot-condicion-opt-subtitle {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+/* Sección de Repuestos en Ficha de OT */
+.ot-repuestos-section {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.ot-repuestos-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.ot-repuestos-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ot-repuestos-question-box {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  margin-bottom: 0.9rem;
+}
+
+.ot-repuestos-q-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.ot-repuestos-q-options {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.ot-repuestos-q-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ot-repuestos-form-add {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.85rem;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 640px) {
+  .ot-repuestos-form-add {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ot-repuestos-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.ot-repuestos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.ot-repuestos-table th {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-weight: 700;
+  border-bottom: 1px solid var(--line);
+}
+
+.ot-repuestos-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.ot-repuestos-empty {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-style: italic;
+}
+
+/* Modal de Código QR Planta */
+.qr-modal-preview-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #ffffff;
+  border-radius: 12px;
+  color: #0f172a;
+  margin-bottom: 1.25rem;
+}
+
+.qr-modal-img {
+  width: 240px;
+  height: 240px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-bottom: 1rem;
+}
+
+.qr-modal-url {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: #0284c7;
+  font-weight: 700;
+  word-break: break-all;
+  background: #f0f9ff;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+}
+
+.qr-modal-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}

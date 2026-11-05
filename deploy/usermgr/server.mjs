@@ -149,6 +149,63 @@ http.createServer(async (req, res) => {
     }
 
     // -------------------------------------------------------------
+    // 2. ENDPOINT PÚBLICO: SOLICITUD DE MANTENIMIENTO VÍA CÓDIGO QR
+    // -------------------------------------------------------------
+    if (urlPath === '/api/solicitudes' && req.method === 'POST') {
+      let raw = ''
+      for await (const c of req) {
+        raw += c
+        if (raw.length > 10000) return send(413, { error: 'Cuerpo de solicitud demasiado grande.' })
+      }
+      let body = {}
+      try {
+        body = JSON.parse(raw || '{}')
+      } catch {
+        return send(400, { error: 'Formato JSON inválido.' })
+      }
+
+      const area = String(body.area || '').trim()
+      const solicitante = String(body.solicitante || '').trim()
+      const linea = String(body.linea || '').trim()
+      const descripcion = String(body.descripcion || '').trim()
+
+      if (!area) return send(400, { error: 'El área del solicitante es obligatoria.' })
+      if (!solicitante || solicitante.length < 2) return send(400, { error: 'El nombre del trabajador debe tener al menos 2 caracteres.' })
+      if (!linea) return send(400, { error: 'La línea o sector es obligatorio.' })
+      if (!descripcion || descripcion.length < 3) return send(400, { error: 'La descripción del problema o trabajo requerido debe tener al menos 3 caracteres.' })
+
+      // Sanitización contra inyección de HTML o scripts
+      const cleanSolicitante = solicitante.replace(/<[^>]*>/g, '').slice(0, 120)
+      const cleanLinea = linea.replace(/<[^>]*>/g, '').slice(0, 120)
+      const cleanDesc = descripcion.replace(/<[^>]*>/g, '').slice(0, 3000)
+
+      const pgrstUrl = process.env.PGRST_URL || 'http://127.0.0.1:3100'
+      const rpcRes = await fetch(`${pgrstUrl}/rpc/crear_solicitud_mantenimiento_qr`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          p_area: area,
+          p_solicitante: cleanSolicitante,
+          p_linea: cleanLinea,
+          p_descripcion: cleanDesc
+        })
+      })
+
+      if (!rpcRes.ok) {
+        const errData = await rpcRes.json().catch(() => ({}))
+        return send(rpcRes.status >= 400 && rpcRes.status < 500 ? rpcRes.status : 500, {
+          error: errData.message || 'Error al procesar la solicitud en la base de datos.'
+        })
+      }
+
+      const result = await rpcRes.json()
+      return send(201, result)
+    }
+
+    // -------------------------------------------------------------
     // VALIDACIÓN DE SESIÓN JWT PARA ACCIONES DE ESCRITURA Y USERS
     // -------------------------------------------------------------
     const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /, '')
@@ -156,7 +213,7 @@ http.createServer(async (req, res) => {
     if (!yo) return send(401, { error: 'Sesión inválida o vencida.' })
 
     // -------------------------------------------------------------
-    // 2. ENDPOINT PARA SUBIR EVIDENCIA (FOTO O VIDEO)
+    // 3. ENDPOINT PARA SUBIR EVIDENCIA (FOTO O VIDEO)
     // -------------------------------------------------------------
     if (urlPath === '/api/evidencias/upload' || urlPath === '/api/evidencias') {
       if (req.method !== 'POST') return send(405, { error: 'Método no permitido.' })
@@ -205,7 +262,7 @@ http.createServer(async (req, res) => {
     }
 
     // -------------------------------------------------------------
-    // 3. ENDPOINTS DE GESTIÓN DE USUARIOS
+    // 4. ENDPOINTS DE GESTIÓN DE USUARIOS
     // -------------------------------------------------------------
     if (urlPath.startsWith('/api/users')) {
       if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores.' })
