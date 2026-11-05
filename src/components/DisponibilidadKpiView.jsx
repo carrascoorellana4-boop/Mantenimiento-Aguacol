@@ -290,51 +290,57 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           </div>
           <p className={`disp-kpi-value ${getPctClass(kpis.disponibilidadGlobal)}`}>
-            {kpis.disponibilidadGlobal.toFixed(1)}%
+            {kpis.disponibilidadGlobal.toFixed(2)}%
           </p>
           <p className="disp-kpi-desc">
             Meta operacional: <strong>≥ 90.0%</strong>
           </p>
         </div>
 
-        {/* KPI 2: Horas Disponibles */}
+        {/* KPI 2: Horas de Funcionamiento (Disponibles) */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas Disponibles</h3>
+            <h3 className="disp-kpi-title">Horas Funcionamiento</h3>
             <div className="disp-kpi-icon disp-icon-prod">
               <Icon n="zap" />
             </div>
           </div>
           <p className="disp-kpi-value" style={{ color: '#34d399' }}>
-            {kpis.totalHorasDisponibles.toFixed(1)} h
+            {kpis.totalHorasDisponibles.toLocaleString('es-CL')} h
           </p>
-          <p className="disp-kpi-desc">Tiempo efectivo disponible en producción</p>
+          <p className="disp-kpi-desc">
+            {kpis.totalTurnosProd} turnos de producción programados
+          </p>
         </div>
 
-        {/* KPI 3: Horas en Mantención */}
+        {/* KPI 3: Horas Indisponibilidad Mantención */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas en Mantención</h3>
+            <h3 className="disp-kpi-title">Indisponibilidad Mantención</h3>
             <div className="disp-kpi-icon disp-icon-det">
               <Icon n="warn" />
             </div>
           </div>
           <p className="disp-kpi-value" style={{ color: kpis.totalHorasMantencion > 0 ? '#f87171' : '#f1f5f9' }}>
-            {kpis.totalHorasMantencion.toFixed(1)} h
+            {kpis.totalHorasMantencion.toLocaleString('es-CL')} h
           </p>
-          <p className="disp-kpi-desc">Detención por falla o mantención</p>
+          <p className="disp-kpi-desc">
+            {kpis.totalTurnosMant} turnos indisp. • {kpis.totalHorasEfectivasMant} h efectivas
+          </p>
         </div>
 
-        {/* KPI 4: Total Horas Base */}
+        {/* KPI 4: Cambios de Molde */}
         <div className="disp-kpi-card">
           <div className="disp-kpi-header">
-            <h3 className="disp-kpi-title">Horas Totales Base</h3>
+            <h3 className="disp-kpi-title">Cambios de Molde</h3>
             <div className="disp-kpi-icon disp-icon-neto">
-              <Icon n="clock" />
+              <Icon n="tool" />
             </div>
           </div>
-          <p className="disp-kpi-value">{kpis.totalHorasBase.toFixed(1)} h</p>
-          <p className="disp-kpi-desc">Horas disponibles + Horas en mantención</p>
+          <p className="disp-kpi-value" style={{ color: '#38bdf8' }}>
+            {kpis.totalCambiosMolde} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>({kpis.totalHorasCambioMolde} h)</span>
+          </p>
+          <p className="disp-kpi-desc">Registro operativo aparte (no resta disp.)</p>
         </div>
       </div>
 
@@ -403,14 +409,21 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         </div>
       </div>
 
-      {/* PESTAÑAS: RESUMEN POR EQUIPO O DETALLE CRONOLÓGICO */}
+      {/* PESTAÑAS: RESUMEN POR MÁQUINA, POR PERÍODO O DETALLE */}
       <div className="disp-tabs-bar">
         <button
           type="button"
           className={`disp-tab-btn ${activeTab === 'resumen' ? 'active' : ''}`}
           onClick={() => setActiveTab('resumen')}
         >
-          <Icon n="chart" size="1em" /> Tabla Consolidada por Equipo ({kpis.porEquipo.length})
+          <Icon n="chart" size="1em" /> Resumen por Máquina ({kpis.porEquipo.length})
+        </button>
+        <button
+          type="button"
+          className={`disp-tab-btn ${activeTab === 'periodos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('periodos')}
+        >
+          <Icon n="calendar-check" size="1em" /> Resumen por Períodos ({kpis.porPeriodo.length})
         </button>
         <button
           type="button"
@@ -427,25 +440,27 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         </div>
       ) : (
         <>
-          {/* PESTAÑA 1: TABLA CONSOLIDADA POR EQUIPO */}
+          {/* PESTAÑA 1: TABLA CONSOLIDADA "RESUMEN POR MÁQUINA" */}
           {activeTab === 'resumen' && (
             <div className="disp-table-container">
               <table className="disp-table">
                 <thead>
                   <tr>
-                    <th>Equipo / Activo</th>
-                    <th>Área</th>
-                    <th style={{ textAlign: 'right' }}>Horas Disponibles</th>
-                    <th style={{ textAlign: 'right' }}>Horas en Mantención</th>
-                    <th style={{ textAlign: 'right' }}>Total (Disp + Mant)</th>
-                    <th style={{ width: '220px' }}>Disponibilidad (%)</th>
-                    <th>Estado</th>
+                    <th>Máquina / Activo</th>
+                    <th style={{ textAlign: 'center' }}>Turnos Prod.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Funcionamiento</th>
+                    <th style={{ textAlign: 'center' }}>Turnos Mant.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Indisp. Mant.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Efectivas</th>
+                    <th style={{ textAlign: 'center' }}>Cambios de Molde</th>
+                    <th style={{ width: '200px' }}>Disponibilidad (%)</th>
+                    <th>Cobertura</th>
                   </tr>
                 </thead>
                 <tbody>
                   {kpis.porEquipo.length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                      <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
                         No hay registros de producción cargados para el período seleccionado.
                         <div style={{ marginTop: '0.75rem' }}>
                           <button
@@ -459,55 +474,185 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                       </td>
                     </tr>
                   ) : (
-                    kpis.porEquipo.map((eq) => {
-                      const pctClass = getPctClass(eq.disponibilidad_pct)
+                    <>
+                      {kpis.porEquipo.map((eq) => {
+                        const pctClass = getPctClass(eq.disponibilidad_pct)
+                        return (
+                          <tr key={eq.codigo}>
+                            <td>
+                              <strong>{eq.nombre}</strong>
+                              <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontFamily: 'monospace' }}>
+                                {eq.codigo}
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                              {eq.turnos_produccion || 0}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
+                              {eq.horas_disponibles.toLocaleString('es-CL')} h
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 600, color: eq.turnos_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                              {eq.turnos_mantencion || 0}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: eq.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                              {eq.horas_mantencion.toLocaleString('es-CL')} h
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 500, color: '#cbd5e1' }}>
+                              {(eq.horas_efectivas_mantenimiento || 0).toLocaleString('es-CL')} h
+                            </td>
+                            <td style={{ textAlign: 'center', fontSize: '0.85rem' }}>
+                              {eq.cambios_molde > 0 ? (
+                                <span style={{ color: '#38bdf8', fontWeight: 600 }}>
+                                  {eq.cambios_molde} ({eq.horas_cambio_molde || 0} h)
+                                </span>
+                              ) : (
+                                <span style={{ color: '#64748b' }}>0</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="disp-progress-wrap">
+                                <span
+                                  style={{ fontWeight: 700, minWidth: '55px', textAlign: 'right' }}
+                                  className={`disp-kpi-value ${pctClass}`}
+                                >
+                                  {eq.disponibilidad_pct.toFixed(2)}%
+                                </span>
+                                <div className="disp-progress-bar">
+                                  <div
+                                    className={`disp-progress-fill ${pctClass}`}
+                                    style={{ width: `${Math.min(100, eq.disponibilidad_pct)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span
+                                className="mp-resp-badge"
+                                style={{
+                                  background: eq.disponibilidad_pct >= 95 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                  color: eq.disponibilidad_pct >= 95 ? '#34d399' : '#fbbf24',
+                                  fontSize: '0.72rem',
+                                }}
+                              >
+                                {eq.cobertura || 'Parcial validada'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+
+                      {/* FILA DE TOTAL / PROMEDIO */}
+                      <tr className="disp-total-row">
+                        <td>
+                          <strong>TOTAL / PROMEDIO</strong>
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Consolidado 10 máquinas</div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{kpis.totalTurnosProd}</td>
+                        <td style={{ textAlign: 'right', color: '#34d399' }}>
+                          {kpis.totalHorasDisponibles.toLocaleString('es-CL')} h
+                        </td>
+                        <td style={{ textAlign: 'center', color: kpis.totalTurnosMant > 0 ? '#f87171' : 'inherit' }}>
+                          {kpis.totalTurnosMant}
+                        </td>
+                        <td style={{ textAlign: 'right', color: kpis.totalHorasMantencion > 0 ? '#f87171' : 'inherit' }}>
+                          {kpis.totalHorasMantencion.toLocaleString('es-CL')} h
+                        </td>
+                        <td style={{ textAlign: 'right', color: '#e2e8f0' }}>
+                          {kpis.totalHorasEfectivasMant.toLocaleString('es-CL')} h
+                        </td>
+                        <td style={{ textAlign: 'center', color: '#38bdf8' }}>
+                          {kpis.totalCambiosMolde} ({kpis.totalHorasCambioMolde} h)
+                        </td>
+                        <td>
+                          <span
+                            className={`disp-kpi-value ${getPctClass(kpis.disponibilidadGlobal)}`}
+                            style={{ fontSize: '1.1rem', fontWeight: 800 }}
+                          >
+                            {kpis.disponibilidadGlobal.toFixed(2)}%
+                          </span>
+                        </td>
+                        <td>
+                          <span className="mp-badge-tag" style={{ fontSize: '0.72rem' }}>
+                            Oficial AGUACOL
+                          </span>
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* PESTAÑA 2: TABLA RESUMEN POR PERÍODOS */}
+          {activeTab === 'periodos' && (
+            <div className="disp-table-container">
+              <table className="disp-table">
+                <thead>
+                  <tr>
+                    <th>Período</th>
+                    <th>Rango Fechas</th>
+                    <th style={{ textAlign: 'center' }}>Turnos Prod.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Funcionamiento</th>
+                    <th style={{ textAlign: 'center' }}>Turnos Mant.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Indisp.</th>
+                    <th style={{ textAlign: 'right' }}>Horas Efectivas</th>
+                    <th style={{ textAlign: 'center' }}>Cambios de Molde</th>
+                    <th style={{ width: '180px' }}>Disponibilidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.porPeriodo.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                        No hay períodos registrados para los filtros seleccionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    kpis.porPeriodo.map((p) => {
+                      const pctClass = getPctClass(p.disponibilidad_pct)
                       return (
-                        <tr key={eq.codigo}>
+                        <tr key={p.periodo}>
                           <td>
-                            <strong>{eq.nombre}</strong>
-                            {eq.codigo && eq.codigo !== eq.nombre && (
-                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{eq.codigo}</div>
+                            <strong>{p.periodo}</strong>
+                          </td>
+                          <td style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                            {p.fecha_desde} al {p.fecha_hasta}
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{p.turnos_produccion}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
+                            {p.horas_disponibles.toLocaleString('es-CL')} h
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 600, color: p.turnos_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                            {p.turnos_mantencion}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: p.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
+                            {p.horas_mantencion.toLocaleString('es-CL')} h
+                          </td>
+                          <td style={{ textAlign: 'right', color: '#cbd5e1' }}>
+                            {p.horas_efectivas_mantenimiento} h
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {p.cambios_molde > 0 ? (
+                              <span style={{ color: '#38bdf8', fontWeight: 600 }}>
+                                {p.cambios_molde} ({p.horas_cambio_molde} h)
+                              </span>
+                            ) : (
+                              <span style={{ color: '#64748b' }}>0</span>
                             )}
                           </td>
                           <td>
-                            <span className="mp-badge-tag">{eq.area}</span>
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                            {eq.horas_disponibles.toFixed(1)} h
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: eq.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                            {eq.horas_mantencion.toFixed(1)} h
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                            {eq.total_horas.toFixed(1)} h
-                          </td>
-                          <td>
                             <div className="disp-progress-wrap">
-                              <span style={{ fontWeight: 700, minWidth: '48px', textAlign: 'right' }} className={`disp-kpi-value ${pctClass}`}>
-                                {eq.disponibilidad_pct.toFixed(1)}%
+                              <span style={{ fontWeight: 700, minWidth: '55px', textAlign: 'right' }} className={`disp-kpi-value ${pctClass}`}>
+                                {p.disponibilidad_pct.toFixed(2)}%
                               </span>
                               <div className="disp-progress-bar">
                                 <div
                                   className={`disp-progress-fill ${pctClass}`}
-                                  style={{ width: `${Math.min(100, eq.disponibilidad_pct)}%` }}
+                                  style={{ width: `${Math.min(100, p.disponibilidad_pct)}%` }}
                                 />
                               </div>
                             </div>
-                          </td>
-                          <td>
-                            {eq.disponibilidad_pct >= 90 ? (
-                              <span className="mp-resp-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                                Óptimo
-                              </span>
-                            ) : eq.disponibilidad_pct >= 80 ? (
-                              <span className="mp-frec-badge" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-                                Alerta
-                              </span>
-                            ) : (
-                              <span className="mp-frec-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                                Crítico
-                              </span>
-                            )}
                           </td>
                         </tr>
                       )
@@ -518,27 +663,28 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           )}
 
-          {/* PESTAÑA 2: DETALLE DE REGISTROS CRONOLÓGICOS */}
+          {/* PESTAÑA 3: DETALLE DE REGISTROS CRONOLÓGICOS */}
           {activeTab === 'detalle' && (
             <div className="disp-table-container">
               <table className="disp-table">
                 <thead>
                   <tr>
-                    <th>Fecha</th>
-                    <th>Equipo</th>
-                    <th>Turno</th>
+                    <th>Período / Fecha</th>
+                    <th>Equipo / Activo</th>
+                    <th>Turno / Régimen</th>
                     <th style={{ textAlign: 'right' }}>Horas Disp.</th>
                     <th style={{ textAlign: 'right' }}>Horas Mant.</th>
+                    <th style={{ textAlign: 'center' }}>Cambio Molde</th>
                     <th>Disponibilidad</th>
-                    <th>Motivo de Mantención / Parada</th>
-                    <th>Observaciones</th>
+                    <th>Motivo de Mantención</th>
+                    <th>Observación de Producción</th>
                     <th style={{ textAlign: 'right' }}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {registrosFiltrados.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                      <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
                         No hay registros que coincidan con los filtros aplicados.
                       </td>
                     </tr>
@@ -550,19 +696,31 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
 
                       return (
                         <tr key={r.id}>
-                          <td>{r.fecha}</td>
                           <td>
-                            <strong>{r.nombre_equipo}</strong>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{r.codigo_equipo}</div>
+                            <strong>{r.periodo || r.fecha}</strong>
+                            {r.fecha && r.fecha_fin && r.fecha !== r.fecha_fin && (
+                              <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                {r.fecha} a {r.fecha_fin}
+                              </div>
+                            )}
                           </td>
                           <td>
-                            <span className="mp-badge-tag">{r.turno || 'Turno 1'}</span>
+                            <strong>{r.nombre_equipo}</strong>
+                            <div style={{ fontSize: '0.75rem', color: '#38bdf8', fontFamily: 'monospace' }}>
+                              {r.codigo_equipo}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="mp-badge-tag">{r.turno || '8h'}</span>
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
                             {hDisp.toFixed(1)} h
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: hMant > 0 ? '#f87171' : 'inherit' }}>
                             {hMant.toFixed(1)} h
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: '0.8rem' }}>
+                            {r.cambios_molde > 0 ? `${r.cambios_molde} (${r.horas_cambio_molde || 0} h)` : '—'}
                           </td>
                           <td>
                             <span style={{ fontWeight: 700 }} className={`disp-kpi-value ${pctClass}`}>
