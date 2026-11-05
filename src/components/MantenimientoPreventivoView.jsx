@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Icon from './Icon'
 import './MantenimientoPreventivo.css'
 import {
-  MAQUINAS_EXTRUSION,
+  MAQUINAS_PREVENTIVO,
+  FAMILIAS_PREVENTIVO,
   getTareasPorMaquina,
   getHistorialEjecuciones,
   subirEvidencia,
@@ -32,8 +33,9 @@ const formatFechaHora = (val) => {
 }
 
 export default function MantenimientoPreventivoView({ session, isAdmin = false, onBack }) {
-  // Estado de navegación: null = selector de máquinas (Extrusión), o máquina seleccionada { id, codigo, nombre, titulo }
+  // Estado de navegación: null = selector de máquinas, o máquina seleccionada { id, codigo, nombre, titulo, alias, familia, ... }
   const [selectedMaquina, setSelectedMaquina] = useState(null)
+  const [selectedFamilia, setSelectedFamilia] = useState('Todas')
   const [activeTab, setActiveTab] = useState('plan') // 'plan' | 'historial'
 
   // Datos
@@ -106,6 +108,23 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
     }
     return map
   }, [historial])
+
+  // Máquinas visibles según la familia seleccionada
+  const maquinasVisibles = useMemo(() => {
+    if (!selectedFamilia || selectedFamilia === 'Todas') {
+      return MAQUINAS_PREVENTIVO
+    }
+    return MAQUINAS_PREVENTIVO.filter((m) => m.familia === selectedFamilia)
+  }, [selectedFamilia])
+
+  // Conteo de máquinas por familia
+  const conteoFamilias = useMemo(() => {
+    const counts = { Todas: MAQUINAS_PREVENTIVO.length }
+    for (const m of MAQUINAS_PREVENTIVO) {
+      counts[m.familia] = (counts[m.familia] || 0) + 1
+    }
+    return counts
+  }, [])
 
   // Lista de frecuencias únicas para el filtro
   const frecuenciasDisponibles = useMemo(() => {
@@ -311,7 +330,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                 onClick={() => setSelectedMaquina(null)}
                 title="Volver a lista de máquinas"
               >
-                <Icon n="left" size="1.1em" /> Volver a Extrusión
+                <Icon n="left" size="1.1em" /> Volver a Máquinas
               </button>
             ) : (
               onBack && (
@@ -327,7 +346,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
             )}
             <h1 className="mp-title">
               {selectedMaquina
-                ? `${selectedMaquina.titulo} — Mantenimiento Preventivo`
+                ? `${selectedMaquina.nombre} (${selectedMaquina.alias})`
                 : 'Mantenimiento Preventivo'}
             </h1>
           </div>
@@ -337,8 +356,8 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
         </div>
         <p className="mp-subtitle">
           {selectedMaquina
-            ? `${selectedMaquina.nombre} (${selectedMaquina.codigo}) • Registro automático de horas de comienzo, cierre y horas efectivas de turno.`
-            : 'Planificación, ejecución y seguimiento de actividades preventivas por equipo.'}
+            ? `${selectedMaquina.codigo} • ${selectedMaquina.familia} • Registro automático de horas de comienzo, cierre y horas efectivas de turno.`
+            : 'Planificación, ejecución y seguimiento de actividades preventivas por equipo según el Árbol de Activos.'}
         </p>
       </header>
 
@@ -364,18 +383,41 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
       )}
 
       {/* =========================================================================
-          VISTA 1: SELECTOR DE MÁQUINAS (EXTRUSIÓN)
+          VISTA 1: SELECTOR DE MÁQUINAS (PLAN CONSOLIDADO COMPLETO)
          ========================================================================= */}
       {!selectedMaquina && (
         <>
           <div className="mp-family-bar">
-            <button type="button" className="mp-family-pill active">
-              <Icon n="zap" size="1em" /> Extrusión (5 máquinas)
-            </button>
+            {FAMILIAS_PREVENTIVO.map((fam) => {
+              const count = conteoFamilias[fam] || 0
+              const isActive = selectedFamilia === fam
+              return (
+                <button
+                  key={fam}
+                  type="button"
+                  className={`mp-family-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => setSelectedFamilia(fam)}
+                >
+                  <Icon
+                    n={
+                      fam === 'Extrusión'
+                        ? 'zap'
+                        : fam === 'Inyección'
+                        ? 'settings'
+                        : fam === 'Soplado'
+                        ? 'tool'
+                        : 'list'
+                    }
+                    size="1em"
+                  />
+                  {fam} ({count})
+                </button>
+              )
+            })}
           </div>
 
           <div className="mp-machines-grid">
-            {MAQUINAS_EXTRUSION.map((maq) => (
+            {maquinasVisibles.map((maq) => (
               <div
                 key={maq.id}
                 className="mp-machine-card"
@@ -385,18 +427,65 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setSelectedMaquina(maq)}
               >
                 <div className="mp-machine-card-header">
-                  <span className="mp-machine-badge">{maq.titulo}</span>
-                  <span className="mp-badge-tag">Planta GPL</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="mp-machine-badge">{maq.alias}</span>
+                    <span className="mp-badge-tag" style={{ fontSize: '0.7rem' }}>
+                      {maq.familia}
+                    </span>
+                  </div>
+                  {maq.diaVentana && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        color: '#94a3b8',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                      }}
+                    >
+                      {maq.diaVentana}
+                    </span>
+                  )}
                 </div>
+
                 <div className="mp-machine-body">
                   <h3 className="mp-machine-name">{maq.nombre}</h3>
-                  <p className="mp-machine-tasks-count">
-                    <Icon n="list" size="0.9em" /> Tareas preventivas: 19
+                  <div
+                    style={{
+                      fontSize: '0.8rem',
+                      color: '#38bdf8',
+                      fontFamily: 'monospace',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {maq.codigo}
+                  </div>
+                  {(maq.fabricante || maq.modelo) && (
+                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      {maq.fabricante} {maq.modelo ? `· ${maq.modelo}` : ''}
+                    </div>
+                  )}
+                  {maq.regimen && (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#94a3b8',
+                        fontStyle: 'italic',
+                        marginTop: '2px',
+                      }}
+                    >
+                      {maq.regimen}
+                    </div>
+                  )}
+                  <p className="mp-machine-tasks-count" style={{ marginTop: '0.5rem' }}>
+                    <Icon n="list" size="0.9em" /> 19 tareas preventivas consolidadas
                   </p>
                 </div>
+
                 <div className="mp-machine-footer">
                   <span className="mp-machine-action">
-                    Ver plan <span>→</span>
+                    Ver plan preventivo <span>→</span>
                   </span>
                 </div>
               </div>
@@ -463,17 +552,18 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                     <table className="mp-table">
                       <thead>
                         <tr>
-                          <th style={{ width: '40%' }}>Tarea</th>
-                          <th style={{ width: '18%' }}>Frecuencia</th>
-                          <th style={{ width: '18%' }}>Responsable</th>
-                          <th style={{ width: '12%' }}>Estado</th>
-                          <th style={{ width: '12%', textAlign: 'right' }}>Acción</th>
+                          <th style={{ width: '13%' }}>ID / Sistema</th>
+                          <th style={{ width: '37%' }}>Actividad / Criterio</th>
+                          <th style={{ width: '16%' }}>Frecuencia / Horas</th>
+                          <th style={{ width: '16%' }}>Responsable / Condición</th>
+                          <th style={{ width: '10%' }}>Estado</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Acción</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredTareas.length === 0 ? (
                           <tr>
-                            <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                            <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
                               No se encontraron tareas con los filtros aplicados.
                             </td>
                           </tr>
@@ -482,20 +572,62 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                             const ejec = ejecucionesPorTarea.get(item.id) || ejecucionesPorTarea.get(item.tarea)
                             const isEnCurso = ejec?.estado === 'En curso'
                             const isRealizada = ejec?.estado === 'Realizada'
+                            const idLabel = item.id_tarea_fuente || `T${String(idx + 1).padStart(2, '0')}`
 
                             return (
                               <tr key={item.id || `${item.codigo_equipo}-${idx}`}>
                                 <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <span
+                                      className="mp-frec-badge"
+                                      style={{
+                                        alignSelf: 'flex-start',
+                                        background: 'rgba(56, 189, 248, 0.15)',
+                                        color: '#38bdf8',
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      {idLabel}
+                                    </span>
+                                    {item.sistema && (
+                                      <span className="mp-task-system" style={{ marginTop: 0 }}>
+                                        {item.sistema}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
                                   <div className="mp-task-title">{item.tarea}</div>
-                                  {item.sistema && (
-                                    <span className="mp-task-system">Sistema: {item.sistema}</span>
+                                  {item.criterio_registro && (
+                                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '3px' }}>
+                                      <strong>Criterio:</strong> {item.criterio_registro}
+                                    </div>
+                                  )}
+                                  {item.validacion_requerida && item.validacion_requerida !== 'Propuesta' && (
+                                    <div style={{ fontSize: '0.75rem', color: '#fbbf24', marginTop: '2px' }}>
+                                      ⚡ {item.validacion_requerida}
+                                    </div>
                                   )}
                                 </td>
                                 <td>
-                                  <span className="mp-frec-badge">{item.frecuencia}</span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span className="mp-frec-badge">{item.frecuencia}</span>
+                                    {item.intervalo_h && (
+                                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', paddingLeft: '4px' }}>
+                                        Cada {item.intervalo_h} hrs
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td>
-                                  <span className="mp-resp-badge">{item.responsable}</span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span className="mp-resp-badge">{item.responsable}</span>
+                                    {item.condicion_trabajo && (
+                                      <span style={{ fontSize: '0.75rem', color: '#cbd5e1', paddingLeft: '2px' }}>
+                                        {item.condicion_trabajo}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td>
                                   {isEnCurso ? (
@@ -530,7 +662,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                                       style={{ background: '#0284c7' }}
                                       onClick={() => handleOpenEjecutar(item)}
                                     >
-                                      <Icon n="check" size="0.9em" /> Ver / Reejecutar
+                                      <Icon n="check" size="0.9em" /> Ver
                                     </button>
                                   ) : (
                                     <button
@@ -725,17 +857,43 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                 <div className="mp-detail-row">
                   <span className="mp-detail-label">Máquina:</span>
                   <span className="mp-detail-value">
-                    {selectedMaquina?.titulo} ({selectedMaquina?.nombre})
+                    <strong>{selectedMaquina?.nombre}</strong> ({selectedMaquina?.codigo}) ·{' '}
+                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{selectedMaquina?.alias}</span> ·{' '}
+                    {selectedMaquina?.familia}
                   </span>
                 </div>
                 <div className="mp-detail-row">
-                  <span className="mp-detail-label">Tarea:</span>
-                  <span className="mp-detail-value">{ejecutarModalTarea.tarea}</span>
+                  <span className="mp-detail-label">Tarea / ID:</span>
+                  <span className="mp-detail-value">
+                    <span
+                      className="mp-frec-badge"
+                      style={{
+                        marginRight: '6px',
+                        background: 'rgba(56, 189, 248, 0.2)',
+                        color: '#38bdf8',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {ejecutarModalTarea.id_tarea_fuente || 'Tarea'}
+                    </span>
+                    <strong>{ejecutarModalTarea.tarea}</strong>
+                  </span>
                 </div>
+                {ejecutarModalTarea.sistema && (
+                  <div className="mp-detail-row">
+                    <span className="mp-detail-label">Sistema:</span>
+                    <span className="mp-detail-value">{ejecutarModalTarea.sistema}</span>
+                  </div>
+                )}
                 <div className="mp-detail-row">
                   <span className="mp-detail-label">Frecuencia:</span>
                   <span className="mp-detail-value">
                     <span className="mp-frec-badge">{ejecutarModalTarea.frecuencia}</span>
+                    {ejecutarModalTarea.intervalo_h && (
+                      <span style={{ marginLeft: '8px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                        (Intervalo: {ejecutarModalTarea.intervalo_h} horas)
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="mp-detail-row">
@@ -744,6 +902,31 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                     <span className="mp-resp-badge">{ejecutarModalTarea.responsable}</span>
                   </span>
                 </div>
+                {ejecutarModalTarea.condicion_trabajo && (
+                  <div className="mp-detail-row">
+                    <span className="mp-detail-label">Condición:</span>
+                    <span className="mp-detail-value" style={{ color: '#cbd5e1' }}>
+                      {ejecutarModalTarea.condicion_trabajo}
+                    </span>
+                  </div>
+                )}
+                {ejecutarModalTarea.criterio_registro && (
+                  <div className="mp-detail-row">
+                    <span className="mp-detail-label">Criterio / Registro:</span>
+                    <span className="mp-detail-value" style={{ color: '#e2e8f0' }}>
+                      {ejecutarModalTarea.criterio_registro}
+                    </span>
+                  </div>
+                )}
+                {ejecutarModalTarea.validacion_requerida &&
+                  ejecutarModalTarea.validacion_requerida !== 'Propuesta' && (
+                    <div className="mp-detail-row">
+                      <span className="mp-detail-label">Validación:</span>
+                      <span className="mp-detail-value" style={{ color: '#fbbf24' }}>
+                        ⚡ {ejecutarModalTarea.validacion_requerida}
+                      </span>
+                    </div>
+                  )}
               </div>
 
               {/* =================================================================
