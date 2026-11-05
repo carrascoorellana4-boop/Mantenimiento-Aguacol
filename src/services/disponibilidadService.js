@@ -21,6 +21,8 @@ export const MAPA_ALIAS_EQUIPOS = {
   'borche': { codigo: 'AGL-PLA-GPL-INY-BOR', nombre: 'Inyectora BORCHE BS150-III', area: 'Plásticos / Inyección', alias: 'I3' },
   'iny 2': { codigo: 'AGL-PLA-GPL-INY-02', nombre: 'Inyectora 2 de Tapas/Manillas', area: 'Plásticos / Inyección', alias: 'I4' },
   'iny preforma': { codigo: 'AGL-PLA-GPL-INY-PREF', nombre: 'Inyectora de preformas 1', area: 'Plásticos / Inyección', alias: 'I1' },
+  'iny preforma 1': { codigo: 'AGL-PLA-GPL-INY-PREF', nombre: 'Inyectora de preformas 1', area: 'Plásticos / Inyección', alias: 'I1' },
+  'iny preforma 2': { codigo: 'AGL-PLA-GPL-INY-PREF-02', nombre: 'Inyectora de preformas 2', area: 'Plásticos / Inyección', alias: 'I2' },
 }
 
 /**

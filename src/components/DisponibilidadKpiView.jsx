@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Icon from './Icon'
 import SelectorPeriodoVisual from './SelectorPeriodoVisual'
+import disponibilidadInicial from '../config/disponibilidadConsolidadaInicial.json'
 import './DisponibilidadKpi.css'
 import * as XLSX from 'xlsx'
 import {
@@ -426,6 +427,13 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         >
           <Icon n="list" size="1em" /> Detalle de Registros ({registrosFiltrados.length})
         </button>
+        <button
+          type="button"
+          className={`disp-tab-btn ${activeTab === 'criterios' ? 'active' : ''}`}
+          onClick={() => setActiveTab('criterios')}
+        >
+          <Icon n="shield" size="1em" /> Criterios y Cobertura
+        </button>
       </div>
 
       {loading ? (
@@ -539,7 +547,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                       <tr className="disp-total-row">
                         <td>
                           <strong>TOTAL / PROMEDIO</strong>
-                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Consolidado 10 máquinas</div>
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Consolidado {kpis.porEquipo.length} máquinas (validado hasta 01-nov)</div>
                         </td>
                         <td style={{ textAlign: 'center' }}>{kpis.totalTurnosProd}</td>
                         <td style={{ textAlign: 'right', color: '#34d399' }}>
@@ -747,6 +755,99 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* PESTAÑA 4: CRITERIOS OPERATIVOS Y REGLAS DE COBERTURA */}
+          {activeTab === 'criterios' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Card 1: Reglas y Criterios */}
+              <div className="disp-table-container">
+                <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Icon n="tool" size="1.1em" /> Reglas y Criterios Operativos del Consolidado
+                  </h3>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    Definiciones oficiales para el cálculo de disponibilidad, turnos e indisponibilidad aplicadas en AGUACOL.
+                  </p>
+                </div>
+                <table className="disp-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '280px' }}>Concepto</th>
+                      <th>Regla Aplicada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(disponibilidadInicial.conceptosReglas || []).map((item, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong style={{ color: '#38bdf8' }}>{item.concepto}</strong>
+                        </td>
+                        <td style={{ color: '#e2e8f0', fontSize: '0.9rem', lineHeight: 1.45 }}>
+                          {item.regla}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Card 2: Cobertura por rangos */}
+              <div className="disp-table-container">
+                <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #334155', background: '#0f172a' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Icon n="calendar-check" size="1.1em" /> Estado de Cobertura y Validación por Rango
+                  </h3>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    Trazabilidad de semanas procesadas desde las planificaciones físicas y registros de planta.
+                  </p>
+                </div>
+                <table className="disp-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '180px' }}>Rango</th>
+                      <th style={{ width: '200px' }}>Estado</th>
+                      <th style={{ width: '120px', textAlign: 'center' }}>En Consolidado</th>
+                      <th>Comentario Técnico</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(disponibilidadInicial.coberturaRangos || []).map((item, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <strong>{item.rango}</strong>
+                        </td>
+                        <td>
+                          <span
+                            className="mp-resp-badge"
+                            style={{
+                              background: item.incluido === 'Sí' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                              color: item.incluido === 'Sí' ? '#34d399' : '#94a3b8',
+                              fontSize: '0.78rem'
+                            }}
+                          >
+                            {item.estado}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: item.incluido === 'Sí' ? '#34d399' : '#f87171'
+                            }}
+                          >
+                            {item.incluido}
+                          </span>
+                        </td>
+                        <td style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>
+                          {item.comentario}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
