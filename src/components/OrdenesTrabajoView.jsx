@@ -11,7 +11,10 @@ import {
   createOrdenTrabajo,
   changeOtStatus,
   updateOrdenTrabajoDetails,
-  fetchOtHistorialEstados
+  fetchOtHistorialEstados,
+  formatDuracionTrabajo,
+  fetchRepuestosDeOt,
+  consumirRepuestoEnOt
 } from '../services/ordenesTrabajoService'
 
 const formatFechaHoraCL = (val) => {
@@ -67,6 +70,8 @@ export default function OrdenesTrabajoView({
   ordenesList = [],
   setOrdenesList = () => {},
   equiposList = [],
+  repuestosList = [],
+  onInventarioChange = () => {},
   session = null,
   initialLoading = false,
   onNavigateToDashboard = () => {}
@@ -122,6 +127,25 @@ export default function OrdenesTrabajoView({
   const [loadingHistorial, setLoadingHistorial] = useState(false)
   const fichaSolucionInputRef = useRef(null)
 
+  // Modal de Código QR Planta
+  const [isQrPlantModalOpen, setIsQrPlantModalOpen] = useState(false)
+
+  // Estado de repuestos consumidos en la OT seleccionada
+  const [fichaRepuestosList, setFichaRepuestosList] = useState([])
+  const [loadingRepuestos, setLoadingRepuestos] = useState(false)
+  const [fichaCondicionLinea, setFichaCondicionLinea] = useState('')
+  const [fichaUtilizoRepuestos, setFichaUtilizoRepuestos] = useState('no')
+  const [repuestoSearchQuery, setRepuestoSearchQuery] = useState('')
+  const [selectedRepuestoId, setSelectedRepuestoId] = useState('')
+  const [consumoCantidad, setConsumoCantidad] = useState('')
+  const [consumoError, setConsumoError] = useState('')
+  const [consumoSubmitting, setConsumoSubmitting] = useState(false)
+
+  // Condición de línea y repuestos en Modal Finalizar
+  const [finalizarCondicionLinea, setFinalizarCondicionLinea] = useState('')
+  const [finalizarUtilizoRepuestos, setFinalizarUtilizoRepuestos] = useState('no')
+
+
   // Sincronizar campos del formulario de la Ficha cuando cambia la OT seleccionada o sus datos
   useEffect(() => {
     if (selectedOt) {
@@ -130,6 +154,12 @@ export default function OrdenesTrabajoView({
       setFichaTecnico(selectedOt.tecnico || '')
       setFichaTrabajo(selectedOt.trabajo || '')
       setFichaPrioridad(selectedOt.prioridad || 'Media')
+      setFichaCondicionLinea(selectedOt.condicion_linea || '')
+      setFichaUtilizoRepuestos(selectedOt.utilizo_repuestos ? 'si' : 'no')
+      setRepuestoSearchQuery('')
+      setSelectedRepuestoId('')
+      setConsumoCantidad('')
+      setConsumoError('')
       setFichaValidationError('')
       setFichaPendingFinalizarMode(false)
 
@@ -137,10 +167,21 @@ export default function OrdenesTrabajoView({
       fetchOtHistorialEstados(selectedOt.id)
         .then((hist) => setFichaHistorial(hist || []))
         .finally(() => setLoadingHistorial(false))
+
+      setLoadingRepuestos(true)
+      fetchRepuestosDeOt(selectedOt.id)
+        .then((reps) => {
+          setFichaRepuestosList(reps || [])
+          if (reps && reps.length > 0) {
+            setFichaUtilizoRepuestos('si')
+          }
+        })
+        .finally(() => setLoadingRepuestos(false))
     } else {
       setFichaHistorial([])
     }
   }, [selectedOt?.id, selectedOt?.estado, selectedOt?.updated_at])
+
 
   // Modal de Cierre / Finalizar OT
   const [finalizarModalOt, setFinalizarModalOt] = useState(null)
@@ -287,10 +328,20 @@ export default function OrdenesTrabajoView({
 
     if (newStatus === 'En curso') {
       optimisticRecord.fecha_inicio = ot.fecha_inicio || nowIso
+      optimisticRecord.fecha_hora_inicio_trabajo = ot.fecha_hora_inicio_trabajo || ot.fecha_inicio || nowIso
       optimisticRecord.fecha_finalizacion = null
+      optimisticRecord.fecha_hora_fin_trabajo = null
     } else if (newStatus === 'Finalizada') {
       optimisticRecord.fecha_inicio = ot.fecha_inicio || nowIso
+      optimisticRecord.fecha_hora_inicio_trabajo = ot.fecha_hora_inicio_trabajo || ot.fecha_inicio || nowIso
       optimisticRecord.fecha_finalizacion = nowIso
+      optimisticRecord.fecha_hora_fin_trabajo = nowIso
+      if (extraPayload.condicion_linea !== undefined) {
+        optimisticRecord.condicion_linea = extraPayload.condicion_linea
+      }
+      if (extraPayload.utilizo_repuestos !== undefined) {
+        optimisticRecord.utilizo_repuestos = Boolean(extraPayload.utilizo_repuestos)
+      }
       if (extraPayload.solucion_definitiva !== undefined) {
         optimisticRecord.solucion_definitiva = String(extraPayload.solucion_definitiva).trim()
       }
@@ -358,9 +409,17 @@ export default function OrdenesTrabajoView({
 
     // Pendiente -> En curso
     if (ot.estado === 'Pendiente' && targetStatus === 'En curso') {
+      const tec = (ot.tecnico || '').trim()
+      if (!tec || tec === 'Sin asignar' || tec === 'Por asignar') {
+        showToast('Debe asignar un mecánico antes de iniciar el trabajo.', 'error')
+        setSelectedOtId(ot.id)
+        return
+      }
       executeStatusChangeWithOptimisticUi(ot, 'En curso', {
-        comentario: 'OT iniciada'
+        fecha_hora_inicio_trabajo: new Date().toISOString(),
+        comentario: `Trabajo iniciado por ${tec}`
       })
+      showToast(`Trabajo iniciado en ${formatCodigoOt(ot)}. Se registró automáticamente la hora de inicio.`, 'success')
       return
     }
 
@@ -391,6 +450,12 @@ export default function OrdenesTrabajoView({
       )
       setFinalizarTecnico(
         source === 'ficha' && fichaTecnico.trim() ? fichaTecnico : ot.tecnico || ''
+      )
+      setFinalizarCondicionLinea(
+        source === 'ficha' && fichaCondicionLinea ? fichaCondicionLinea : ot.condicion_linea || ''
+      )
+      setFinalizarUtilizoRepuestos(
+        source === 'ficha' ? fichaUtilizoRepuestos : (ot.utilizo_repuestos ? 'si' : 'no')
       )
       setFinalizarError('')
       return
@@ -431,6 +496,17 @@ export default function OrdenesTrabajoView({
     e.preventDefault()
     if (!finalizarModalOt || finalizarSubmitting) return
 
+    const trimmedTecnico = (finalizarTecnico || '').trim()
+    if (!trimmedTecnico || trimmedTecnico === 'Sin asignar' || trimmedTecnico === 'Por asignar') {
+      setFinalizarError('Debe indicar el mecánico asignado antes de finalizar.')
+      return
+    }
+
+    if (!finalizarCondicionLinea) {
+      setFinalizarError('Debe seleccionar obligatoriamente la condición de la línea (Línea detenida o Línea produciendo).')
+      return
+    }
+
     const trimmedSolucion = (finalizarSolucion || '').trim()
     if (!trimmedSolucion) {
       setFinalizarError('La Solución definitiva es obligatoria para poder finalizar la OT.')
@@ -442,12 +518,22 @@ export default function OrdenesTrabajoView({
     const targetOt = finalizarModalOt
     setFinalizarModalOt(null)
 
+    const nowIso = new Date().toISOString()
     await executeStatusChangeWithOptimisticUi(targetOt, 'Finalizada', {
       solucion_definitiva: trimmedSolucion,
       trabajo_pendiente: (finalizarTrabajoPendiente || '').trim() || null,
-      tecnico: (finalizarTecnico || '').trim() || targetOt.tecnico,
-      comentario: `OT finalizada. Solución: ${trimmedSolucion}`
+      tecnico: trimmedTecnico,
+      condicion_linea: finalizarCondicionLinea,
+      utilizo_repuestos: finalizarUtilizoRepuestos === 'si',
+      fecha_hora_fin_trabajo: nowIso,
+      comentario: `OT finalizada. Condición: ${finalizarCondicionLinea}. Solución: ${trimmedSolucion}`
     })
+
+    const duracion = formatDuracionTrabajo(
+      targetOt.fecha_hora_inicio_trabajo || targetOt.fecha_inicio,
+      nowIso
+    )
+    showToast(`OT ${formatCodigoOt(targetOt)} finalizada. Duración registrada: ${duracion}`, 'success')
 
     setFinalizarSubmitting(false)
   }
@@ -462,6 +548,64 @@ export default function OrdenesTrabajoView({
     await executeStatusChangeWithOptimisticUi(ot, targetStatus, {
       comentario: comentario || `${ot.estado} → ${targetStatus}`
     })
+  }
+
+  // Consumir repuesto desde la Ficha de la OT
+  const handleConsumirRepuestoFicha = async (e) => {
+    e.preventDefault()
+    if (!selectedOt || consumoSubmitting) return
+
+    if (!selectedRepuestoId) {
+      setConsumoError('Debe buscar y seleccionar un repuesto del inventario.')
+      return
+    }
+
+    const matchedRep = repuestosList.find((r) => r.id === selectedRepuestoId || r.codigo === selectedRepuestoId)
+    if (!matchedRep) {
+      setConsumoError('El repuesto seleccionado no es válido.')
+      return
+    }
+
+    const cantNum = Number(consumoCantidad)
+    if (isNaN(cantNum) || cantNum <= 0) {
+      setConsumoError('Ingrese una cantidad mayor a 0.')
+      return
+    }
+
+    const stockDisp = Number(matchedRep.stock_actual ?? matchedRep.stock ?? 0)
+    if (cantNum > stockDisp) {
+      setConsumoError(`Stock insuficiente. Stock actual disponible: ${stockDisp} ${matchedRep.unidad_medida || 'UND'}.`)
+      return
+    }
+
+    setConsumoSubmitting(true)
+    setConsumoError('')
+
+    try {
+      await consumirRepuestoEnOt({
+        otId: selectedOt.id,
+        repuestoId: matchedRep.id,
+        cantidad: cantNum,
+        tecnico: fichaTecnico || selectedOt.tecnico
+      })
+
+      showToast(`Se registró el consumo de ${cantNum} ${matchedRep.unidad_medida || 'UND'} de ${matchedRep.nombre || matchedRep.repuesto}.`, 'success')
+      setConsumoCantidad('')
+      setSelectedRepuestoId('')
+      setRepuestoSearchQuery('')
+      setFichaUtilizoRepuestos('si')
+
+      // Recargar repuestos de la OT e inventario global
+      const updatedReps = await fetchRepuestosDeOt(selectedOt.id)
+      setFichaRepuestosList(updatedReps || [])
+      if (typeof onInventarioChange === 'function') {
+        onInventarioChange()
+      }
+    } catch (err) {
+      setConsumoError(err.message || 'Error al registrar consumo del repuesto.')
+    } finally {
+      setConsumoSubmitting(false)
+    }
   }
 
   // Guardar datos o finalizar desde la Ficha Individual
@@ -486,14 +630,33 @@ export default function OrdenesTrabajoView({
     setFichaSaving(true)
     try {
       if (shouldFinalize && selectedOt.estado !== 'Finalizada') {
+        const trimmedTec = (fichaTecnico || '').trim()
+        if (!trimmedTec || trimmedTec === 'Sin asignar' || trimmedTec === 'Por asignar') {
+          setFichaValidationError('Debe asignar un mecánico antes de finalizar el trabajo.')
+          return
+        }
+        if (!fichaCondicionLinea) {
+          setFichaValidationError('Debe seleccionar obligatoriamente la condición de la línea (Línea detenida o Línea produciendo).')
+          return
+        }
+        if (fichaUtilizoRepuestos === 'si' && fichaRepuestosList.length === 0) {
+          setFichaValidationError('Indicó que se utilizaron repuestos. Debe registrar al menos un repuesto consumido a continuación.')
+          return
+        }
+        const nowFinIso = new Date().toISOString()
         const ok = await executeStatusChangeWithOptimisticUi(selectedOt, 'Finalizada', {
           solucion_definitiva: fichaSolucion.trim(),
           trabajo_pendiente: (fichaTrabajoPendiente || '').trim() || null,
-          tecnico: (fichaTecnico || '').trim() || selectedOt.tecnico,
-          comentario: `Finalizada desde Ficha de OT. Solución: ${fichaSolucion.trim()}`
+          tecnico: trimmedTec,
+          condicion_linea: fichaCondicionLinea,
+          utilizo_repuestos: fichaUtilizoRepuestos === 'si',
+          fecha_hora_fin_trabajo: nowFinIso,
+          comentario: `Finalizada desde Ficha. Condición: ${fichaCondicionLinea}. Solución: ${fichaSolucion.trim()}`
         })
         if (ok) {
           setFichaPendingFinalizarMode(false)
+          const dur = formatDuracionTrabajo(selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio, nowFinIso)
+          showToast(`OT ${formatCodigoOt(selectedOt)} finalizada. Duración total: ${dur}`, 'success')
         }
       } else {
         const updated = await updateOrdenTrabajoDetails(
@@ -503,7 +666,9 @@ export default function OrdenesTrabajoView({
             tecnico: fichaTecnico,
             prioridad: fichaPrioridad,
             solucion_definitiva: fichaSolucion,
-            trabajo_pendiente: fichaTrabajoPendiente
+            trabajo_pendiente: fichaTrabajoPendiente,
+            condicion_linea: fichaCondicionLinea || null,
+            utilizo_repuestos: fichaUtilizoRepuestos === 'si'
           },
           session,
           equiposList
@@ -677,6 +842,50 @@ export default function OrdenesTrabajoView({
         {/* Descripción breve del trabajo */}
         <p className="ot-card-trabajo">{ot.trabajo}</p>
 
+        {/* Solicitante si proviene de Solicitud QR */}
+        {ot.solicitante_nombre && (
+          <div className="ot-card-solicitante-row">
+            <span>👤 Solicitante:</span>
+            <strong className="ot-card-solicitante-name">
+              {ot.solicitante_nombre} ({ot.solicitante_area || ot.area || 'Planta'})
+            </strong>
+          </div>
+        )}
+
+        {/* Condición de línea si está definida */}
+        {ot.condicion_linea && (
+          <div>
+            <span
+              className={`ot-condicion-badge ${
+                ot.condicion_linea === 'Línea detenida' ? 'detenida' : 'produciendo'
+              }`}
+            >
+              {ot.condicion_linea === 'Línea detenida' ? '🛑 Línea detenida' : '⚡ Línea produciendo'}
+            </span>
+          </div>
+        )}
+
+        {/* Duración total si está Finalizada */}
+        {ot.estado === 'Finalizada' &&
+          (ot.fecha_hora_inicio_trabajo || ot.fecha_inicio) &&
+          (ot.fecha_hora_fin_trabajo || ot.fecha_finalizacion) && (
+            <div>
+              <span className="ot-card-duracion-badge">
+                ⏱️ {formatDuracionTrabajo(
+                  ot.fecha_hora_inicio_trabajo || ot.fecha_inicio,
+                  ot.fecha_hora_fin_trabajo || ot.fecha_finalizacion
+                )}
+              </span>
+            </div>
+          )}
+
+        {/* Indicador de repuestos utilizados */}
+        {ot.utilizo_repuestos && (
+          <div style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 600 }}>
+            ⚙️ Con repuestos de inventario
+          </div>
+        )}
+
         {/* Solución resumida si está finalizada */}
         {ot.estado === 'Finalizada' && ot.solucion_definitiva && (
           <div className="ot-card-solucion-box">
@@ -769,6 +978,15 @@ export default function OrdenesTrabajoView({
         </div>
 
         <div className="ot-clean-header-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            data-testid="btn-qr-planta"
+            onClick={() => setIsQrPlantModalOpen(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <span>📱</span> Código QR Planta
+          </button>
           <button
             type="button"
             className="btn-secondary ot-btn-header-dash"
@@ -1061,6 +1279,21 @@ export default function OrdenesTrabajoView({
                         <span className="ot-ficha-origin-tag">
                           Origen: <strong>{selectedOt.origen || 'Manual'}</strong>
                         </span>
+                        {selectedOt.solicitante_nombre && (
+                          <span className="ot-ficha-origin-tag" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                            Solicitante: <strong>{selectedOt.solicitante_nombre} ({selectedOt.solicitante_area || selectedOt.area || 'Planta'})</strong>
+                          </span>
+                        )}
+                        {selectedOt.estado === 'Finalizada' &&
+                          (selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio) &&
+                          (selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion) && (
+                            <span className="ot-card-duracion-badge">
+                              ⏱️ Duración: {formatDuracionTrabajo(
+                                selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio,
+                                selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion
+                              )}
+                            </span>
+                          )}
                       </div>
                       <h2 className="modal-title" style={{ marginTop: '0.35rem' }}>
                         {equipoNombre} — <span style={{ fontWeight: 500 }}>{ubicacionDisplay}</span>
@@ -1233,6 +1466,15 @@ export default function OrdenesTrabajoView({
                             : 'En atención'}
                         </strong>
                       </div>
+                      <div className="ot-ficha-date-item">
+                        <span className="ot-date-lbl">Duración calculada</span>
+                        <strong className="ot-date-val">
+                          {formatDuracionTrabajo(
+                            selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio,
+                            selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion
+                          )}
+                        </strong>
+                      </div>
                     </div>
 
                     {/* Formulario de detalle de la OT */}
@@ -1312,6 +1554,228 @@ export default function OrdenesTrabajoView({
                             value={fichaTrabajo}
                             onChange={(e) => setFichaTrabajo(e.target.value)}
                           />
+                        </div>
+
+                        {/* Condición de la línea durante el trabajo */}
+                        <div className="form-group full-width">
+                          <label className="form-label">
+                            Condición de la línea durante el trabajo <span className="required-mark">*</span>
+                          </label>
+                          <div className="ot-condicion-options-row">
+                            <label
+                              className={`ot-condicion-opt-card ${
+                                fichaCondicionLinea === 'Línea detenida' ? 'selected-detenida' : ''
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="ficha_condicion_linea"
+                                value="Línea detenida"
+                                checked={fichaCondicionLinea === 'Línea detenida'}
+                                onChange={(e) => setFichaCondicionLinea(e.target.value)}
+                              />
+                              <div>
+                                <div className="ot-condicion-opt-title">🛑 Línea detenida</div>
+                                <div className="ot-condicion-opt-subtitle">
+                                  La línea estuvo paralizada (suma a indisponibilidad productiva)
+                                </div>
+                              </div>
+                            </label>
+
+                            <label
+                              className={`ot-condicion-opt-card ${
+                                fichaCondicionLinea === 'Línea produciendo' ? 'selected-produciendo' : ''
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="ficha_condicion_linea"
+                                value="Línea produciendo"
+                                checked={fichaCondicionLinea === 'Línea produciendo'}
+                                onChange={(e) => setFichaCondicionLinea(e.target.value)}
+                              />
+                              <div>
+                                <div className="ot-condicion-opt-title">⚡ Línea produciendo</div>
+                                <div className="ot-condicion-opt-subtitle">
+                                  Trabajo en marcha (no genera indisponibilidad productiva)
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* SECCIÓN DE REPUESTOS (#10) */}
+                        <div className="form-group full-width">
+                          <div className="ot-repuestos-section">
+                            <div className="ot-repuestos-title-row">
+                              <h4 className="ot-repuestos-title">
+                                <span>⚙️</span> Control de repuestos de inventario
+                              </h4>
+                            </div>
+
+                            <div className="ot-repuestos-question-box">
+                              <span className="ot-repuestos-q-label">¿Se utilizaron repuestos en este trabajo?</span>
+                              <div className="ot-repuestos-q-options">
+                                <label className="ot-repuestos-q-opt">
+                                  <input
+                                    type="radio"
+                                    name="ficha_utilizo_repuestos"
+                                    value="no"
+                                    checked={fichaUtilizoRepuestos === 'no'}
+                                    onChange={(e) => setFichaUtilizoRepuestos(e.target.value)}
+                                  />
+                                  <span>No</span>
+                                </label>
+                                <label className="ot-repuestos-q-opt">
+                                  <input
+                                    type="radio"
+                                    name="ficha_utilizo_repuestos"
+                                    value="si"
+                                    checked={fichaUtilizoRepuestos === 'si'}
+                                    onChange={(e) => setFichaUtilizoRepuestos(e.target.value)}
+                                  />
+                                  <span>Sí</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            {fichaUtilizoRepuestos === 'si' && (
+                              <div>
+                                <div className="ot-repuestos-form-add">
+                                  <div>
+                                    <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                                      Buscar repuesto en catálogo
+                                    </label>
+                                    <input
+                                      type="text"
+                                      className="form-input"
+                                      placeholder="Buscar por código o nombre..."
+                                      value={repuestoSearchQuery}
+                                      onChange={(e) => {
+                                        setRepuestoSearchQuery(e.target.value)
+                                        setSelectedRepuestoId('')
+                                        setConsumoError('')
+                                      }}
+                                    />
+                                    {repuestoSearchQuery.trim() && !selectedRepuestoId && (
+                                      <div
+                                        style={{
+                                          maxHeight: '150px',
+                                          overflowY: 'auto',
+                                          background: 'rgba(15, 23, 42, 0.95)',
+                                          border: '1px solid var(--line)',
+                                          borderRadius: '6px',
+                                          marginTop: '0.25rem',
+                                          zIndex: 10
+                                        }}
+                                      >
+                                        {repuestosList
+                                          .filter((r) => {
+                                            const q = repuestoSearchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                                            const n = (r.nombre || r.repuesto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                                            const c = (r.codigo || '').toLowerCase()
+                                            return n.includes(q) || c.includes(q)
+                                          })
+                                          .slice(0, 10)
+                                          .map((item) => (
+                                            <div
+                                              key={item.id}
+                                              onClick={() => {
+                                                setSelectedRepuestoId(item.id)
+                                                setRepuestoSearchQuery(`[${item.codigo}] ${item.nombre || item.repuesto}`)
+                                              }}
+                                              style={{
+                                                padding: '0.4rem 0.6rem',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                                fontSize: '0.82rem'
+                                              }}
+                                            >
+                                              <strong>[{item.codigo}]</strong> {item.nombre || item.repuesto}{' '}
+                                              <span style={{ color: '#38bdf8' }}>
+                                                (Stock: {item.stock_actual ?? item.stock ?? 0} {item.unidad_medida || 'UND'})
+                                              </span>
+                                            </div>
+                                          ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                                      Cantidad
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      className="form-input"
+                                      placeholder="Ej. 1"
+                                      value={consumoCantidad}
+                                      onChange={(e) => setConsumoCantidad(e.target.value)}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      style={{ padding: '0.65rem 0.9rem', fontSize: '0.85rem' }}
+                                      disabled={consumoSubmitting || !selectedRepuestoId || !consumoCantidad}
+                                      onClick={handleConsumirRepuestoFicha}
+                                    >
+                                      {consumoSubmitting ? 'Registrando...' : '+ Consumir'}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {consumoError && (
+                                  <div className="alert-error" style={{ marginBottom: '0.6rem', fontSize: '0.8rem' }}>
+                                    <span>⚠️</span> <span>{consumoError}</span>
+                                  </div>
+                                )}
+
+                                <div className="ot-repuestos-table-wrap">
+                                  {loadingRepuestos ? (
+                                    <p className="ot-repuestos-empty">Cargando repuestos consumidos...</p>
+                                  ) : fichaRepuestosList.length === 0 ? (
+                                    <p className="ot-repuestos-empty">No se han registrado repuestos aún para esta OT.</p>
+                                  ) : (
+                                    <table className="ot-repuestos-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Código</th>
+                                          <th>Repuesto</th>
+                                          <th>Cantidad</th>
+                                          <th>Precio Compra</th>
+                                          <th>Total</th>
+                                          <th>Registrado por</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {fichaRepuestosList.map((cr) => {
+                                          const repNom = cr.repuesto?.nombre || 'Repuesto'
+                                          const repCod = cr.repuesto?.codigo || '—'
+                                          const pUnit = Number(cr.precio_unitario || cr.repuesto?.precio_compra || 0)
+                                          const cant = Number(cr.cantidad || 0)
+                                          return (
+                                            <tr key={cr.id}>
+                                              <td><code>{repCod}</code></td>
+                                              <td>{repNom}</td>
+                                              <td><strong>{cant} {cr.repuesto?.unidad_medida || 'UND'}</strong></td>
+                                              <td>${pUnit.toLocaleString('es-CL')}</td>
+                                              <td>${(cant * pUnit).toLocaleString('es-CL')}</td>
+                                              <td>{cr.registrado_por || 'Técnico'}</td>
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="form-group full-width">
@@ -1504,6 +1968,77 @@ export default function OrdenesTrabajoView({
                           <span>{finalizarError}</span>
                         </div>
                       )}
+
+                      {/* Condición de la línea (obligatorio) */}
+                      <div className="form-group">
+                        <label className="form-label">
+                          Condición de la línea <span className="required-mark">*</span>
+                        </label>
+                        <div className="ot-condicion-options-row">
+                          <label
+                            className={`ot-condicion-opt-card ${
+                              finalizarCondicionLinea === 'Línea detenida' ? 'selected-detenida' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="finalizar_condicion_linea"
+                              value="Línea detenida"
+                              checked={finalizarCondicionLinea === 'Línea detenida'}
+                              onChange={(e) => setFinalizarCondicionLinea(e.target.value)}
+                            />
+                            <div>
+                              <div className="ot-condicion-opt-title">🛑 Línea detenida</div>
+                              <div className="ot-condicion-opt-subtitle">Parada productiva</div>
+                            </div>
+                          </label>
+
+                          <label
+                            className={`ot-condicion-opt-card ${
+                              finalizarCondicionLinea === 'Línea produciendo' ? 'selected-produciendo' : ''
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="finalizar_condicion_linea"
+                              value="Línea produciendo"
+                              checked={finalizarCondicionLinea === 'Línea produciendo'}
+                              onChange={(e) => setFinalizarCondicionLinea(e.target.value)}
+                            />
+                            <div>
+                              <div className="ot-condicion-opt-title">⚡ Línea produciendo</div>
+                              <div className="ot-condicion-opt-subtitle">Equipo en marcha</div>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Repuestos utilizados */}
+                      <div className="form-group">
+                        <label className="form-label">¿Se utilizaron repuestos?</label>
+                        <div style={{ display: 'flex', gap: '1.25rem', marginTop: '0.25rem' }}>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name="finalizar_repuestos"
+                              value="no"
+                              checked={finalizarUtilizoRepuestos === 'no'}
+                              onChange={(e) => setFinalizarUtilizoRepuestos(e.target.value)}
+                            />
+                            <span>No</span>
+                          </label>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name="finalizar_repuestos"
+                              value="si"
+                              checked={finalizarUtilizoRepuestos === 'si'}
+                              onChange={(e) => setFinalizarUtilizoRepuestos(e.target.value)}
+                            />
+                            <span>Sí</span>
+                          </label>
+                        </div>
+                      </div>
 
                       <div className="form-group">
                         <label className="form-label" htmlFor="modal-solucion-definitiva">
@@ -1871,6 +2406,97 @@ export default function OrdenesTrabajoView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================================================
+          MODAL 4: CÓDIGO QR FÍSICO PARA PLANTA (#13)
+         ========================================================================== */}
+      {isQrPlantModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsQrPlantModalOpen(false)}>
+          <div
+            className="modal-container"
+            style={{ maxWidth: '520px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h2 className="modal-title">Código QR Físico — Planta AGUACOL</h2>
+                <p className="modal-subtitle">
+                  Para imprimir e instalar en tableros, líneas de producción y accesos
+                </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsQrPlantModalOpen(false)}
+              >
+                <Icon n="x" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="qr-modal-preview-box">
+                <img
+                  src="/assets/qr/qr-solicitud-mantenimiento.svg"
+                  alt="QR Solicitud Mantenimiento Aguacol"
+                  className="qr-modal-img"
+                />
+                <div style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '0.95rem' }}>
+                  Escanea para reportar fallas y solicitudes
+                </div>
+                <div className="qr-modal-url">
+                  https://mantenimiento.aguacol.cl/solicitud-mantenimiento
+                </div>
+              </div>
+
+              <div className="qr-modal-actions-grid">
+                <a
+                  href="/assets/qr/qr-solicitud-mantenimiento.png"
+                  download="qr-aguacol-mantenimiento-1200px.png"
+                  className="btn-primary"
+                  style={{ textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                >
+                  <span>⬇️</span> PNG Alta Resolución
+                </a>
+                <a
+                  href="/assets/qr/qr-solicitud-mantenimiento.svg"
+                  download="qr-aguacol-mantenimiento.svg"
+                  className="btn-secondary"
+                  style={{ textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                >
+                  <span>⬇️</span> Formato Vector SVG
+                </a>
+                <a
+                  href="/assets/qr/afiche-solicitud-qr-planta.svg"
+                  download="afiche-solicitud-mantenimiento-planta.svg"
+                  className="btn-secondary"
+                  style={{ textAlign: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', gridColumn: '1 / -1' }}
+                >
+                  <span>📄</span> Descargar Afiche Completo Imprimible (SVG)
+                </a>
+                <a
+                  href="/solicitud-mantenimiento"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary"
+                  style={{ textAlign: 'center', textDecoration: 'none', gridColumn: '1 / -1' }}
+                >
+                  🔗 Abrir formulario en nueva pestaña
+                </a>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setIsQrPlantModalOpen(false)}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

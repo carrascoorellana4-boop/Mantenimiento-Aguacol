@@ -4,7 +4,24 @@ import { parseTecnicos } from '../lib/tecnicos.js'
 export const ESTADOS_OT = ['Pendiente', 'En curso', 'Finalizada']
 export const SET_ESTADOS_OT = new Set(ESTADOS_OT)
 
-export const ORIGENES_OT = ['Manual', 'Inspección', 'WhatsApp']
+export const ORIGENES_OT = ['Manual', 'Inspección', 'WhatsApp', 'Solicitud QR']
+
+/**
+ * Calcula la duración legible de trabajo entre inicio y finalización (ej: "1 h 33 min")
+ */
+export const formatDuracionTrabajo = (inicio, fin) => {
+  if (!inicio || !fin) return '—'
+  const dInicio = new Date(inicio)
+  const dFin = new Date(fin)
+  if (isNaN(dInicio.getTime()) || isNaN(dFin.getTime())) return '—'
+  const diffMs = Math.max(0, dFin.getTime() - dInicio.getTime())
+  const totalMins = Math.round(diffMs / 60000)
+  const hours = Math.floor(totalMins / 60)
+  const mins = totalMins % 60
+  if (hours === 0) return `${mins} min`
+  if (mins === 0) return `${hours} h`
+  return `${hours} h ${mins} min`
+}
 export const PRIORIDADES_OT = ['Baja', 'Media', 'Alta', 'Crítica']
 
 const LOCAL_OT_STORAGE_KEY = 'aguacol_orden_trabajo_db_v1'
@@ -803,6 +820,12 @@ export const updateOrdenTrabajoDetails = async (
   if (updates.tipo_intervencion !== undefined) cleanUpdates.tipo_intervencion = updates.tipo_intervencion
   if (updates.es_falla !== undefined) cleanUpdates.es_falla = Boolean(updates.es_falla)
   if (updates.tipo_falla !== undefined) cleanUpdates.tipo_falla = updates.tipo_falla
+  if (updates.condicion_linea !== undefined) cleanUpdates.condicion_linea = updates.condicion_linea
+  if (updates.utilizo_repuestos !== undefined) cleanUpdates.utilizo_repuestos = Boolean(updates.utilizo_repuestos)
+  if (updates.solicitante_nombre !== undefined) cleanUpdates.solicitante_nombre = updates.solicitante_nombre
+  if (updates.solicitante_area !== undefined) cleanUpdates.solicitante_area = updates.solicitante_area
+  if (updates.fecha_hora_inicio_trabajo !== undefined) cleanUpdates.fecha_hora_inicio_trabajo = updates.fecha_hora_inicio_trabajo
+  if (updates.fecha_hora_fin_trabajo !== undefined) cleanUpdates.fecha_hora_fin_trabajo = updates.fecha_hora_fin_trabajo
 
   const { data, error } = await supabase
     .from('orden_trabajo')
@@ -1031,4 +1054,64 @@ export const calculateOtDashboardMetrics = (
     reportadasEnPeriodo,
     totalOrdenes: structurallyFiltered.length
   }
+}
+
+/**
+ * 6. Consultar repuestos consumidos en una Orden de Trabajo (public.orden_trabajo_repuesto)
+ */
+export const fetchRepuestosDeOt = async (otId) => {
+  if (!otId) return []
+  try {
+    const { data, error } = await supabase
+      .from('orden_trabajo_repuesto')
+      .select(`
+        id,
+        ot_id,
+        repuesto_id,
+        cantidad,
+        precio_unitario,
+        registrado_por,
+        created_at,
+        repuesto:repuesto_id (
+          id,
+          codigo,
+          nombre,
+          unidad_medida,
+          precio_compra
+        )
+      `)
+      .eq('ot_id', otId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.warn('Error al consultar repuestos de OT:', error)
+      return []
+    }
+    return data || []
+  } catch (err) {
+    console.warn('Excepción al consultar repuestos de OT:', err)
+    return []
+  }
+}
+
+/**
+ * 7. Registrar consumo de repuesto en una Orden de Trabajo con deducción de stock en inventario
+ */
+export const consumirRepuestoEnOt = async ({ otId, repuestoId, cantidad, tecnico }) => {
+  if (!otId || !repuestoId || !cantidad || Number(cantidad) <= 0) {
+    throw new Error('Debe especificar un repuesto válido y una cantidad mayor a 0.')
+  }
+  const cantNum = Number(cantidad)
+
+  const { data, error } = await supabase.rpc('consumir_repuesto_ot', {
+    p_ot_id: otId,
+    p_repuesto_id: repuestoId,
+    p_cantidad: cantNum,
+    p_tecnico: tecnico || 'Técnico'
+  })
+
+  if (error) {
+    throw new Error(error.message || 'No fue posible registrar el consumo del repuesto.')
+  }
+  return data
 }

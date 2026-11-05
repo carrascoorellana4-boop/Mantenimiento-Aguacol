@@ -15,6 +15,7 @@ import UpdateBanner from './components/UpdateBanner'
 import UsuariosView from './components/UsuariosView'
 import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
 import DisponibilidadKpiView from './components/DisponibilidadKpiView'
+import SolicitudMantenimientoQrView from './components/SolicitudMantenimientoQrView'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
