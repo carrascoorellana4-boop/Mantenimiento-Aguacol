@@ -328,6 +328,7 @@ function App() {
   
   // Estado de Autenticación
   const [session, setSession] = useState(null)
+  const [authChecking, setAuthChecking] = useState(true)
   // Rol: administrador (puede escribir y gestionar usuarios) o visualizador (solo lectura). Lo hace cumplir la base; esto solo ordena la pantalla.
   const isAdmin = session?.user?.role === 'mant_admin'
   
@@ -472,12 +473,16 @@ function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      setAuthChecking(false)
+    }).catch(() => {
+      setAuthChecking(false)
     })
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      setAuthChecking(false)
       if (!session && (activeView === 'nuevo-repuesto' || activeView === 'retiro')) {
         setActiveView('home')
       }
@@ -2699,6 +2704,18 @@ function App() {
     setSelectedActivoId(targetId)
     setActivoDetailTab(tab)
     setActiveView('arbol-activos')
+  }
+
+  // Pantalla de carga mientras se verifica la sesión persistente en localStorage
+  if (authChecking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#091e3a', color: '#38bdf8' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="login-spinner" style={{ width: '36px', height: '36px', margin: '0 auto 1rem auto' }} />
+          <p style={{ fontSize: '0.88rem', color: '#94a3b8', letterSpacing: '0.04em' }}>Cargando sesión AGUACOL...</p>
+        </div>
+      </div>
+    )
   }
 
   // Inicio de sesión a pantalla completa (sin menú), con su propia escena animada.
