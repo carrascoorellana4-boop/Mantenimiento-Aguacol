@@ -1,4 +1,5 @@
 import Icon from './Icon'
+import SelectorPeriodoVisual from './SelectorPeriodoVisual'
 import { useState, useMemo } from 'react'
 import { parseTecnicos } from '../lib/tecnicos'
 import { calculateOtDashboardMetrics } from '../services/ordenesTrabajoService'
@@ -37,20 +38,6 @@ const COLORS_FALLA = {
   'Ajuste / Otros': '#64748b'
 }
 
-const MESES = [
-  { value: 1, label: 'Enero' },
-  { value: 2, label: 'Febrero' },
-  { value: 3, label: 'Marzo' },
-  { value: 4, label: 'Abril' },
-  { value: 5, label: 'Mayo' },
-  { value: 6, label: 'Junio' },
-  { value: 7, label: 'Julio' },
-  { value: 8, label: 'Agosto' },
-  { value: 9, label: 'Septiembre' },
-  { value: 10, label: 'Octubre' },
-  { value: 11, label: 'Noviembre' },
-  { value: 12, label: 'Diciembre' }
-]
 
 export default function DashboardMantenimiento({
   bitacoraList = [],
@@ -63,17 +50,13 @@ export default function DashboardMantenimiento({
   onRefreshData = () => {},
   loading = false
 }) {
-  // Estados de Filtros Globales (por defecto: toda_la_bitacora)
-  const [filterPeriodo, setFilterPeriodo] = useState('toda_la_bitacora')
-  const [selectedDia, setSelectedDia] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  // Estado de Selector Visual de Período (AÑO, MES, DÍAS interactivo)
+  const [periodoVisual, setPeriodoVisual] = useState({
+    fechaDesde: '',
+    fechaHasta: '',
+    isAll: true,
+    label: 'Toda la bitácora'
   })
-  const [selectedMes, setSelectedMes] = useState(() => new Date().getMonth() + 1)
-  const [selectedMesAno, setSelectedMesAno] = useState(() => new Date().getFullYear())
-  const [selectedAno, setSelectedAno] = useState(() => new Date().getFullYear())
-  const [customFechaDesde, setCustomFechaDesde] = useState('')
-  const [customFechaHasta, setCustomFechaHasta] = useState('')
   const [filterArea, setFilterArea] = useState('')
   const [filterEquipoId, setFilterEquipoId] = useState('')
   const [filterTecnico, setFilterTecnico] = useState('')
@@ -126,131 +109,30 @@ export default function DashboardMantenimiento({
     return Array.from(anos).sort((a, b) => b - a)
   }, [bitacoraList, ordenesTrabajoList])
 
-  // Validación de rango personalizado
-  const customDateError = useMemo(() => {
-    if (filterPeriodo === 'personalizado' && customFechaDesde && customFechaHasta) {
-      return customFechaDesde > customFechaHasta
-    }
-    return false
-  }, [filterPeriodo, customFechaDesde, customFechaHasta])
-
-  // Cálculo de rango de fechas según período (inicio inclusivo y fin exclusivo, consistente con Chile y Postgres)
+  // Cálculo de rango de fechas según período visual
   const dateRange = useMemo(() => {
-    const now = new Date()
+    if (periodoVisual.isAll || (!periodoVisual.fechaDesde && !periodoVisual.fechaHasta)) {
+      return { start: null, end: null }
+    }
     let start = null
     let end = null
 
-    if (filterPeriodo === 'toda_la_bitacora') {
-      start = null
-      end = null
-    } else if (filterPeriodo === 'hoy') {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'dia_especifico') {
-      if (selectedDia) {
-        const [y, m, d] = selectedDia.split('-').map(Number)
-        start = new Date(y, m - 1, d, 0, 0, 0, 0)
-        end = new Date(y, m - 1, d + 1, 0, 0, 0, 0)
-      }
-    } else if (filterPeriodo === 'mes_especifico') {
-      start = new Date(selectedMesAno, selectedMes - 1, 1, 0, 0, 0, 0)
-      end = new Date(selectedMesAno, selectedMes, 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'ano_especifico') {
-      start = new Date(selectedAno, 0, 1, 0, 0, 0, 0)
-      end = new Date(selectedAno + 1, 0, 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'ultimos_30_dias') {
-      start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'ultimos_3_meses') {
-      start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'ultimos_6_meses') {
-      start = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000)
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'ultimos_12_meses') {
-      start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-    } else if (filterPeriodo === 'personalizado') {
-      if (customFechaDesde) {
-        const [y1, m1, d1] = customFechaDesde.split('-').map(Number)
-        start = new Date(y1, m1 - 1, d1, 0, 0, 0, 0)
-      }
-      if (customFechaHasta) {
-        const [y2, m2, d2] = customFechaHasta.split('-').map(Number)
-        end = new Date(y2, m2 - 1, d2 + 1, 0, 0, 0, 0)
-      }
+    if (periodoVisual.fechaDesde) {
+      const [y1, m1, d1] = periodoVisual.fechaDesde.split('-').map(Number)
+      start = new Date(y1, m1 - 1, d1, 0, 0, 0, 0)
+    }
+    if (periodoVisual.fechaHasta) {
+      const [y2, m2, d2] = periodoVisual.fechaHasta.split('-').map(Number)
+      end = new Date(y2, m2 - 1, d2 + 1, 0, 0, 0, 0)
     }
 
     return { start, end }
-  }, [
-    filterPeriodo,
-    selectedDia,
-    selectedMes,
-    selectedMesAno,
-    selectedAno,
-    customFechaDesde,
-    customFechaHasta
-  ])
+  }, [periodoVisual])
 
   // Texto amigable del período para la cabecera
   const periodoLabel = useMemo(() => {
-    if (filterPeriodo === 'toda_la_bitacora') return 'Toda la bitácora'
-
-    if (filterPeriodo === 'hoy') {
-      const now = new Date()
-      return now.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
-    }
-
-    if (filterPeriodo === 'dia_especifico') {
-      if (!selectedDia) return 'Día específico'
-      const [y, m, d] = selectedDia.split('-').map(Number)
-      const dateObj = new Date(y, m - 1, d)
-      return dateObj.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
-    }
-
-    if (filterPeriodo === 'mes_especifico') {
-      const mesName = MESES.find((m) => m.value === selectedMes)?.label || 'Mes'
-      return `${mesName} ${selectedMesAno}`
-    }
-
-    if (filterPeriodo === 'ano_especifico') {
-      return `Año ${selectedAno}`
-    }
-
-    if (filterPeriodo === 'ultimos_30_dias') return 'Últimos 30 días'
-    if (filterPeriodo === 'ultimos_3_meses') return 'Últimos 3 meses'
-    if (filterPeriodo === 'ultimos_6_meses') return 'Últimos 6 meses'
-    if (filterPeriodo === 'ultimos_12_meses') return 'Últimos 12 meses'
-
-    if (filterPeriodo === 'personalizado') {
-      if (customFechaDesde && customFechaHasta) {
-        const [y1, m1, d1] = customFechaDesde.split('-').map(Number)
-        const [y2, m2, d2] = customFechaHasta.split('-').map(Number)
-        const f1 = new Date(y1, m1 - 1, d1).toLocaleDateString('es-CL', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        })
-        const f2 = new Date(y2, m2 - 1, d2).toLocaleDateString('es-CL', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        })
-        return `${f1} — ${f2}`
-      }
-      return 'Rango personalizado'
-    }
-
-    return 'Período seleccionado'
-  }, [
-    filterPeriodo,
-    selectedDia,
-    selectedMes,
-    selectedMesAno,
-    selectedAno,
-    customFechaDesde,
-    customFechaHasta
-  ])
+    return periodoVisual.label || 'Toda la bitácora'
+  }, [periodoVisual])
 
   // Métricas de Órdenes de Trabajo sincronizadas con orden_trabajo.estado (Requerimientos 17, 18 y 19)
   const otMetrics = useMemo(() => {
@@ -263,14 +145,12 @@ export default function DashboardMantenimiento({
 
   // Resetear filtros
   const handleResetFilters = () => {
-    setFilterPeriodo('toda_la_bitacora')
-    const now = new Date()
-    setSelectedDia(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`)
-    setSelectedMes(now.getMonth() + 1)
-    setSelectedMesAno(now.getFullYear())
-    setSelectedAno(now.getFullYear())
-    setCustomFechaDesde('')
-    setCustomFechaHasta('')
+    setPeriodoVisual({
+      fechaDesde: '',
+      fechaHasta: '',
+      isAll: true,
+      label: 'Toda la bitácora'
+    })
     setFilterArea('')
     setFilterEquipoId('')
     setFilterTecnico('')
@@ -279,14 +159,12 @@ export default function DashboardMantenimiento({
   }
 
   const hasActiveFilters =
-    filterPeriodo !== 'toda_la_bitacora' ||
+    !periodoVisual.isAll ||
     Boolean(filterArea) ||
     Boolean(filterEquipoId) ||
     Boolean(filterTecnico) ||
     Boolean(filterTipoIntervencion) ||
-    Boolean(filterTipoFalla) ||
-    Boolean(customFechaDesde) ||
-    Boolean(customFechaHasta)
+    Boolean(filterTipoFalla)
 
   // Filtrado reactivo de bitácora
   const filteredIntervenciones = useMemo(() => {
@@ -614,25 +492,12 @@ export default function DashboardMantenimiento({
   // Fecha de referencia para ventanas de 12 meses o indicadores relativos
   const referenceDate = useMemo(() => {
     const now = new Date()
-    if (filterPeriodo === 'mes_especifico') {
-      return new Date(selectedMesAno, selectedMes - 1, 1)
-    }
-    if (filterPeriodo === 'dia_especifico' && selectedDia) {
-      const [y, m, d] = selectedDia.split('-').map(Number)
-      return new Date(y, m - 1, d)
-    }
-    if (filterPeriodo === 'ano_especifico') {
-      if (selectedAno === now.getFullYear()) {
-        return now
-      }
-      return new Date(selectedAno, 11, 31)
-    }
-    if (filterPeriodo === 'personalizado' && customFechaHasta) {
-      const [y, m, d] = customFechaHasta.split('-').map(Number)
+    if (periodoVisual.fechaHasta) {
+      const [y, m, d] = periodoVisual.fechaHasta.split('-').map(Number)
       return new Date(y, m - 1, d)
     }
     return now
-  }, [filterPeriodo, selectedMesAno, selectedMes, selectedDia, selectedAno, customFechaHasta])
+  }, [periodoVisual.fechaHasta])
 
   // ==========================================
   // PANEL 6: Equipos más críticos (Criticidad Operacional Reciente)
@@ -866,6 +731,14 @@ export default function DashboardMantenimiento({
         </div>
       </header>
 
+      {/* SELECTOR VISUAL DE PERÍODO (AÑO, MES, DÍAS) */}
+      <SelectorPeriodoVisual
+        availableYears={availableAnos}
+        value={periodoVisual}
+        onChange={setPeriodoVisual}
+        allowAll={true}
+      />
+
       {/* 2. BARRA DE FILTROS GLOBALES */}
       <div className="fracttal-filters-card">
         <div className="fracttal-filters-header">
@@ -885,116 +758,6 @@ export default function DashboardMantenimiento({
         </div>
 
         <div className="fracttal-filters-grid">
-          {/* Período */}
-          <div className="fracttal-filter-control">
-            <label className="fracttal-filter-label">Período</label>
-            <select
-              className="fracttal-select"
-              value={filterPeriodo}
-              onChange={(e) => setFilterPeriodo(e.target.value)}
-            >
-              <option value="toda_la_bitacora">Toda la bitácora</option>
-              <option value="hoy">Hoy</option>
-              <option value="dia_especifico">Día específico</option>
-              <option value="mes_especifico">Mes específico</option>
-              <option value="ano_especifico">Año específico</option>
-              <option value="ultimos_30_dias">Últimos 30 días</option>
-              <option value="ultimos_3_meses">Últimos 3 meses</option>
-              <option value="ultimos_6_meses">Últimos 6 meses</option>
-              <option value="ultimos_12_meses">Últimos 12 meses</option>
-              <option value="personalizado">Rango personalizado</option>
-            </select>
-          </div>
-
-          {/* Sub-selector: Día específico */}
-          {filterPeriodo === 'dia_especifico' && (
-            <div className="fracttal-filter-control">
-              <label className="fracttal-filter-label">Día</label>
-              <input
-                type="date"
-                className="fracttal-input"
-                value={selectedDia}
-                onChange={(e) => setSelectedDia(e.target.value)}
-              />
-            </div>
-          )}
-
-          {/* Sub-selector: Mes específico */}
-          {filterPeriodo === 'mes_especifico' && (
-            <>
-              <div className="fracttal-filter-control">
-                <label className="fracttal-filter-label">Mes</label>
-                <select
-                  className="fracttal-select"
-                  value={selectedMes}
-                  onChange={(e) => setSelectedMes(Number(e.target.value))}
-                >
-                  {MESES.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="fracttal-filter-control">
-                <label className="fracttal-filter-label">Año</label>
-                <select
-                  className="fracttal-select"
-                  value={selectedMesAno}
-                  onChange={(e) => setSelectedMesAno(Number(e.target.value))}
-                >
-                  {availableAnos.map((yr) => (
-                    <option key={yr} value={yr}>
-                      {yr}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-
-          {/* Sub-selector: Año específico */}
-          {filterPeriodo === 'ano_especifico' && (
-            <div className="fracttal-filter-control">
-              <label className="fracttal-filter-label">Año</label>
-              <select
-                className="fracttal-select"
-                value={selectedAno}
-                onChange={(e) => setSelectedAno(Number(e.target.value))}
-              >
-                {availableAnos.map((yr) => (
-                  <option key={yr} value={yr}>
-                    {yr}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Sub-selector: Rango personalizado */}
-          {filterPeriodo === 'personalizado' && (
-            <>
-              <div className="fracttal-filter-control">
-                <label className="fracttal-filter-label">Desde</label>
-                <input
-                  type="date"
-                  className={`fracttal-input ${customDateError ? 'input-error' : ''}`}
-                  value={customFechaDesde}
-                  onChange={(e) => setCustomFechaDesde(e.target.value)}
-                />
-              </div>
-              <div className="fracttal-filter-control">
-                <label className="fracttal-filter-label">Hasta</label>
-                <input
-                  type="date"
-                  className={`fracttal-input ${customDateError ? 'input-error' : ''}`}
-                  value={customFechaHasta}
-                  onChange={(e) => setCustomFechaHasta(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
           {/* Área */}
           <div className="fracttal-filter-control">
             <label className="fracttal-filter-label">Área</label>
@@ -1081,12 +844,7 @@ export default function DashboardMantenimiento({
           </div>
         </div>
 
-        {customDateError && (
-          <div className="fracttal-filter-error-banner" role="alert">
-            <span><Icon n="warn" /></span>
-            <span>La fecha &quot;Desde&quot; ({customFechaDesde}) no puede ser posterior a la fecha &quot;Hasta&quot; ({customFechaHasta}).</span>
-          </div>
-        )}
+        
       </div>
 
       {loading && (

@@ -1,0 +1,233 @@
+/* SelectorPeriodoVisual.css - Réplica fiel del componente visual de selección de período */
+
+.selector-periodo-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* CABECERA AZUL MARINO */
+.selector-periodo-header {
+  background: linear-gradient(90deg, #071936 0%, #0f2952 100%);
+  color: #ffffff;
+  padding: 0.55rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.selector-periodo-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.selector-periodo-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.selector-periodo-summary {
+  font-size: 0.82rem;
+  color: #93c5fd;
+  font-weight: 500;
+}
+
+.selector-periodo-all-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #f1f5f9;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.selector-periodo-all-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.selector-periodo-all-btn.active {
+  background: #22c55e;
+  border-color: #16a34a;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+/* CUERPO DEL SELECTOR */
+.selector-periodo-body {
+  padding: 0.75rem 1.1rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: #f8fafc;
+}
+
+/* FILAS HORIZONTALES */
+.selector-row {
+  display: grid;
+  grid-template-columns: 85px 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .selector-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    align-items: flex-start;
+  }
+}
+
+/* COLUMNA ETIQUETA */
+.selector-label-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.selector-main-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.selector-sub-label {
+  font-size: 0.68rem;
+  font-style: italic;
+  color: #94a3b8;
+  line-height: 1.1;
+  margin-top: 1px;
+}
+
+/* COLUMNA DE BOTONES / CONTROLES */
+.selector-controls-col {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.selector-pills-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.quarters-group {
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid #cbd5e1;
+}
+
+/* ESTILO BASE DE LAS PÍLDORAS */
+.selector-pill {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  touch-action: none;
+}
+
+.selector-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* PÍLDORA ACTIVA (VERDE) */
+.selector-pill.pill-active {
+  background: #22c55e !important;
+  border-color: #16a34a !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.35);
+}
+
+.selector-pill.pill-active:hover {
+  background: #16a34a !important;
+  border-color: #15803d !important;
+}
+
+/* VARIANTES ESPECÍFICAS */
+.year-pill {
+  min-width: 48px;
+  padding: 0.25rem 0.75rem;
+}
+
+.quarter-pill {
+  min-width: 34px;
+  padding: 0.25rem 0.5rem;
+}
+
+.month-pill {
+  min-width: 38px;
+  padding: 0.25rem 0.55rem;
+}
+
+/* MES ACTIVO (en la imagen el mes seleccionado tiene un verde bosque sólido) */
+.month-pill.pill-active {
+  background: #166534 !important;
+  border-color: #14532d !important;
+  color: #ffffff !important;
+}
+
+/* FILA DE DÍAS */
+.days-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  width: 100%;
+}
+
+.day-pill {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: 5px;
+  text-align: center;
+}
+
+/* Scrollbar estilizada para días si sobrepasa la pantalla */
+.days-group::-webkit-scrollbar {
+  height: 4px;
+}
+.days-group::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+.days-group::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 2px;
+}

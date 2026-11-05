@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Icon from './Icon'
+import SelectorPeriodoVisual from './SelectorPeriodoVisual'
 import './DisponibilidadKpi.css'
 import * as XLSX from 'xlsx'
 import {
@@ -18,11 +19,26 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
   const [activeTab, setActiveTab] = useState('resumen') // 'resumen' | 'detalle'
 
   // Filtros
-  const [periodoFiltro, setPeriodoFiltro] = useState('todo') // 'todo' | '7dias' | '30dias' | 'mes' | 'custom'
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
+  const [periodoVisual, setPeriodoVisual] = useState({
+    fechaDesde: '',
+    fechaHasta: '',
+    isAll: true,
+    label: 'Todo el historial'
+  })
   const [equipoFiltro, setEquipoFiltro] = useState('todos')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Años disponibles detectados en los registros de disponibilidad
+  const availableYears = useMemo(() => {
+    const set = new Set([2024, 2025, 2026, new Date().getFullYear()])
+    registros.forEach((r) => {
+      if (r.fecha) {
+        const y = parseInt(r.fecha.slice(0, 4), 10)
+        if (!isNaN(y)) set.add(y)
+      }
+    })
+    return Array.from(set).sort((a, b) => a - b)
+  }, [registros])
 
   // Modal de importación de Excel
   const [importModalOpen, setImportModalOpen] = useState(false)
@@ -54,24 +70,14 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
   const registrosFiltrados = useMemo(() => {
     let result = [...registros]
 
-    // Filtro de fechas
-    const now = new Date()
-    if (periodoFiltro === '7dias') {
-      const d7 = new Date()
-      d7.setDate(now.getDate() - 7)
-      const d7Str = d7.toISOString().split('T')[0]
-      result = result.filter((r) => r.fecha >= d7Str)
-    } else if (periodoFiltro === '30dias') {
-      const d30 = new Date()
-      d30.setDate(now.getDate() - 30)
-      const d30Str = d30.toISOString().split('T')[0]
-      result = result.filter((r) => r.fecha >= d30Str)
-    } else if (periodoFiltro === 'mes') {
-      const mesStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      result = result.filter((r) => r.fecha >= mesStr)
-    } else if (periodoFiltro === 'custom') {
-      if (fechaDesde) result = result.filter((r) => r.fecha >= fechaDesde)
-      if (fechaHasta) result = result.filter((r) => r.fecha <= fechaHasta)
+    // Filtro visual de fechas (AÑO, MES, DÍAS)
+    if (!periodoVisual.isAll) {
+      if (periodoVisual.fechaDesde) {
+        result = result.filter((r) => r.fecha >= periodoVisual.fechaDesde)
+      }
+      if (periodoVisual.fechaHasta) {
+        result = result.filter((r) => r.fecha <= periodoVisual.fechaHasta)
+      }
     }
 
     // Filtro de equipo
@@ -93,7 +99,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
     }
 
     return result
-  }, [registros, periodoFiltro, fechaDesde, fechaHasta, equipoFiltro, searchQuery])
+  }, [registros, periodoVisual, equipoFiltro, searchQuery])
 
   // KPIs consolidados
   const kpis = useMemo(() => {
@@ -279,6 +285,14 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         </div>
       )}
 
+      {/* SELECTOR VISUAL DE PERÍODO (AÑO, MES, DÍAS) */}
+      <SelectorPeriodoVisual
+        availableYears={availableYears}
+        value={periodoVisual}
+        onChange={setPeriodoVisual}
+        allowAll={true}
+      />
+
       {/* TARJETAS KPI GLOBALES */}
       <div className="disp-kpi-grid">
         {/* KPI 1: Disponibilidad Global */}
@@ -344,43 +358,8 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
         </div>
       </div>
 
-      {/* BARRA DE FILTROS */}
+      {/* BARRA DE FILTROS SECUNDARIOS */}
       <div className="disp-filter-bar">
-        <div className="disp-filter-group">
-          <span className="disp-filter-label">Período:</span>
-          <select
-            className="disp-filter-select"
-            value={periodoFiltro}
-            onChange={(e) => setPeriodoFiltro(e.target.value)}
-          >
-            <option value="todo">Histórico Completo</option>
-            <option value="7dias">Últimos 7 días</option>
-            <option value="30dias">Últimos 30 días</option>
-            <option value="mes">Mes actual</option>
-            <option value="custom">Rango Personalizado</option>
-          </select>
-        </div>
-
-        {periodoFiltro === 'custom' && (
-          <div className="disp-filter-group">
-            <input
-              type="date"
-              className="disp-filter-input"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              title="Fecha Desde"
-            />
-            <span style={{ color: '#94a3b8' }}>a</span>
-            <input
-              type="date"
-              className="disp-filter-input"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              title="Fecha Hasta"
-            />
-          </div>
-        )}
-
         <div className="disp-filter-group">
           <span className="disp-filter-label">Equipo:</span>
           <select
@@ -407,6 +386,21 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {(!periodoVisual.isAll || equipoFiltro !== 'todos' || searchQuery) && (
+          <button
+            type="button"
+            className="disp-btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+            onClick={() => {
+              setPeriodoVisual({ fechaDesde: '', fechaHasta: '', isAll: true, label: 'Todo el historial' })
+              setEquipoFiltro('todos')
+              setSearchQuery('')
+            }}
+          >
+            <Icon n="x" /> Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* PESTAÑAS: RESUMEN POR MÁQUINA, POR PERÍODO O DETALLE */}
