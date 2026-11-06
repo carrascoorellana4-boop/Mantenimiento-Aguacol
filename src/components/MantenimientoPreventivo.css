@@ -854,3 +854,83 @@
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
+
+
+/* ==========================================================================
+   BANNER OPERADOR TABLET EN PLANTA
+   ========================================================================== */
+.mp-tablet-operator-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.mp-tablet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.mp-tablet-details {
+  flex: 1;
+  min-width: 250px;
+}
+
+.mp-tablet-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.mp-tablet-subtitle {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.mp-tablet-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+  color: #e2e8f0;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .mp-tablet-operator-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem;
+  }
+  .mp-tablet-user-pill {
+    width: 100%;
+    justify-content: center;
+  }
+}

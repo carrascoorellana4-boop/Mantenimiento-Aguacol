@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Loader2, ArrowLeft, Activity } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, ArrowRight, Loader2, ArrowLeft, Activity, Tablet } from 'lucide-react'
 import Icon from './Icon'
 import './LoginView.css'
 
@@ -134,6 +134,37 @@ export default function LoginView({ email, setEmail, password, setPassword, load
                 <Icon n="warn" /> <span>{error}</span>
               </div>
             )}
+
+            {/* Acceso Rápido para Operadores en Tablet */}
+            <div className="lg-operadores-shortcuts">
+              <span className="lg-shortcuts-label"><Tablet size={13} /> Acceso rápido Operador (Tablet):</span>
+              <div className="lg-shortcuts-pills">
+                <button
+                  type="button"
+                  className="lg-shortcut-pill"
+                  onClick={() => setEmail('operador.extrusion@aguacol.cl')}
+                  title="Cargar usuario de Operador Extrusión"
+                >
+                  Extrusión
+                </button>
+                <button
+                  type="button"
+                  className="lg-shortcut-pill"
+                  onClick={() => setEmail('operador.soplado@aguacol.cl')}
+                  title="Cargar usuario de Operador Soplado"
+                >
+                  Soplado
+                </button>
+                <button
+                  type="button"
+                  className="lg-shortcut-pill"
+                  onClick={() => setEmail('operador.inyeccion@aguacol.cl')}
+                  title="Cargar usuario de Operador Inyección"
+                >
+                  Inyección
+                </button>
+              </div>
+            </div>
 
             <label className="lg-field">
               <span className="lg-label">Usuario</span>

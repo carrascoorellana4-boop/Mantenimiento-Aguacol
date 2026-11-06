@@ -57,8 +57,40 @@ function verificar(token) {
 const gotrue = (pathUrl, init = {}) => fetch(`${GOTRUE}${pathUrl}`, {
   ...init, headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
 })
-const publico = (u) => ({ id: u.id, email: u.email, role: u.role === ADMIN ? 'admin' : 'viewer', created_at: u.created_at, last_sign_in_at: u.last_sign_in_at })
-const aRol = (r) => (r === 'admin' ? ADMIN : r === 'viewer' ? VIEWER : null)
+
+const aRol = (r) => {
+  if (r === 'admin') return ADMIN
+  if (r === 'viewer' || r === 'operador' || r === 'operador_extrusion' || r === 'operador_soplado' || r === 'operador_inyeccion') {
+    return VIEWER
+  }
+  return null
+}
+
+const publico = (u) => {
+  let role = u.user_metadata?.role || u.app_metadata?.role
+  if (!role) {
+    if (u.role === ADMIN) role = 'admin'
+    else if (u.email?.includes('operador.extrusion') || u.email?.includes('operador_extrusion')) role = 'operador_extrusion'
+    else if (u.email?.includes('operador.soplado') || u.email?.includes('operador_soplado')) role = 'operador_soplado'
+    else if (u.email?.includes('operador.inyeccion') || u.email?.includes('operador_inyeccion')) role = 'operador_inyeccion'
+    else if (u.email?.includes('operador')) role = 'operador'
+    else role = 'viewer'
+  }
+  const area = u.user_metadata?.area || (
+    role === 'operador_extrusion' ? 'Extrusión' :
+    role === 'operador_soplado' ? 'Soplado' :
+    role === 'operador_inyeccion' ? 'Inyección' : null
+  )
+  return {
+    id: u.id,
+    email: u.email,
+    role,
+    area,
+    user_metadata: { ...(u.user_metadata || {}), role, area },
+    created_at: u.created_at,
+    last_sign_in_at: u.last_sign_in_at
+  }
+}
 
 async function listar() {
   const r = await gotrue('/admin/users?per_page=200')
@@ -76,7 +108,26 @@ async function manejarUsers(req, body, yo) {
     const rol = aRol(body.role)
     const email = String(body.email || '').trim().toLowerCase()
     if (!rol || !EMAIL_OK.test(email) || String(body.password || '').length < 8) return [400, { error: 'El usuario debe ser nombre@aguacol.cl, con rol y contraseña de al menos 8 caracteres.' }]
-    const r = await gotrue('/admin/users', { method: 'POST', body: JSON.stringify({ email, password: body.password, role: rol, email_confirm: true }) })
+    const area = body.area || (
+      body.role === 'operador_extrusion' ? 'Extrusión' :
+      body.role === 'operador_soplado' ? 'Soplado' :
+      body.role === 'operador_inyeccion' ? 'Inyección' : null
+    )
+    const userPayload = {
+      email,
+      password: body.password,
+      role: rol,
+      user_metadata: {
+        role: body.role,
+        area,
+        nombre: email.split('@')[0]
+      },
+      app_metadata: {
+        role: body.role
+      },
+      email_confirm: true
+    }
+    const r = await gotrue('/admin/users', { method: 'POST', body: JSON.stringify(userPayload) })
     const d = await r.json()
     return r.ok ? [201, { user: publico(d) }] : [r.status === 422 ? 409 : 400, { error: r.status === 422 ? 'Ese correo ya existe.' : (d.msg || 'No se pudo crear.') }]
   }
@@ -90,6 +141,18 @@ async function manejarUsers(req, body, yo) {
       if (!rol) return [400, { error: 'Rol inválido.' }]
       if (id === yo.sub && rol !== ADMIN) return [400, { error: 'No puedes quitarte tu propio rol de administrador.' }]
       cambios.role = rol
+      const area = body.area || (
+        body.role === 'operador_extrusion' ? 'Extrusión' :
+        body.role === 'operador_soplado' ? 'Soplado' :
+        body.role === 'operador_inyeccion' ? 'Inyección' : null
+      )
+      cambios.user_metadata = {
+        role: body.role,
+        area
+      }
+      cambios.app_metadata = {
+        role: body.role
+      }
     }
     if (body.password) {
       if (String(body.password).length < 8) return [400, { error: 'La contraseña debe tener al menos 8 caracteres.' }]
@@ -217,7 +280,7 @@ http.createServer(async (req, res) => {
     // -------------------------------------------------------------
     if (urlPath === '/api/evidencias/upload' || urlPath === '/api/evidencias') {
       if (req.method !== 'POST') return send(405, { error: 'Método no permitido.' })
-      if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores pueden registrar evidencias.' })
+      if (yo.role !== ADMIN && yo.role !== VIEWER) return send(403, { error: 'No autorizado para registrar evidencias.' })
 
       const rawMime = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim().toLowerCase()
       const ext = EXT_FROM_MIME[rawMime]

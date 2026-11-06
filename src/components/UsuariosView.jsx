@@ -1,11 +1,46 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldCheck, Eye, UserPlus, KeyRound, Trash2, Loader2, X } from 'lucide-react'
+import { ShieldCheck, Eye, UserPlus, KeyRound, Trash2, Loader2, X, Tablet, CheckCircle2 } from 'lucide-react'
 import Icon from './Icon'
 
 const DOMINIO = '@aguacol.cl'
-const ROLES = {
-  admin: { label: 'Administrador', hint: 'Puede crear, editar y gestionar usuarios.', Cmp: ShieldCheck },
-  viewer: { label: 'Visualizador', hint: 'Solo puede ver la información.', Cmp: Eye },
+
+export const ROLES = {
+  admin: {
+    label: 'Administrador',
+    hint: 'Puede crear, editar y gestionar usuarios, inventario y bitácora.',
+    badgeClass: 'usr-rol-admin',
+    Cmp: ShieldCheck
+  },
+  viewer: {
+    label: 'Visualizador',
+    hint: 'Solo puede consultar tableros e información en modo lectura.',
+    badgeClass: 'usr-rol-viewer',
+    Cmp: Eye
+  },
+  operador_extrusion: {
+    label: 'Operador Extrusión (Tablet)',
+    hint: 'Acceso exclusivo en Tablet a pautas preventivas de Extrusión (M1..M5) bajo su responsabilidad.',
+    badgeClass: 'usr-rol-operador-extrusion',
+    area: 'Extrusión',
+    defaultUser: 'operador.extrusion',
+    Cmp: Tablet
+  },
+  operador_soplado: {
+    label: 'Operador Soplado (Tablet)',
+    hint: 'Acceso exclusivo en Tablet a pautas preventivas de Soplado (S1, S2) bajo su responsabilidad.',
+    badgeClass: 'usr-rol-operador-soplado',
+    area: 'Soplado',
+    defaultUser: 'operador.soplado',
+    Cmp: Tablet
+  },
+  operador_inyeccion: {
+    label: 'Operador Inyección (Tablet)',
+    hint: 'Acceso exclusivo en Tablet a pautas preventivas de Inyección (Preformas, Borche, INY 2) bajo su responsabilidad.',
+    badgeClass: 'usr-rol-operador-inyeccion',
+    area: 'Inyección',
+    defaultUser: 'operador.inyeccion',
+    Cmp: Tablet
+  },
 }
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : 'Nunca')
@@ -38,11 +73,24 @@ export default function UsuariosView({ session }) {
 
   useEffect(() => { cargar() }, [cargar])
 
-  const abrir = (tipo, user = null) => {
+  const abrir = (tipo, user = null, preset = null) => {
     setFormError('')
-    setForm({ nombre: '', password: '', role: user?.role || 'viewer' })
+    if (preset) {
+      setForm({
+        nombre: preset.nombre || '',
+        password: preset.password || 'Aguacol2026!',
+        role: preset.role || 'viewer'
+      })
+    } else {
+      setForm({
+        nombre: user ? user.email.replace(DOMINIO, '') : '',
+        password: '',
+        role: user?.role || 'viewer'
+      })
+    }
     setModal({ tipo, user })
   }
+
   const cerrar = () => { if (!saving) setModal(null) }
 
   const guardar = async (e) => {
@@ -53,8 +101,15 @@ export default function UsuariosView({ session }) {
       if (modal.tipo === 'crear') {
         const nombre = form.nombre.trim().toLowerCase()
         if (!/^[a-z0-9][a-z0-9._-]*$/.test(nombre)) throw new Error('El usuario solo admite letras, números, punto, guion y guion bajo.')
-        await api('', { method: 'POST', body: JSON.stringify({ email: `${nombre}${DOMINIO}`, password: form.password, role: form.role }) })
-        setAviso(`Usuario ${nombre}${DOMINIO} creado.`)
+        await api('', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: `${nombre}${DOMINIO}`,
+            password: form.password,
+            role: form.role
+          })
+        })
+        setAviso(`Usuario ${nombre}${DOMINIO} creado exitosamente con rol ${ROLES[form.role]?.label || form.role}.`)
       } else if (modal.tipo === 'editar') {
         const cambios = { role: form.role }
         if (form.password) cambios.password = form.password
@@ -72,6 +127,11 @@ export default function UsuariosView({ session }) {
     setSaving(false)
   }
 
+  // Identificar qué cuentas de operadores ya están creadas
+  const getExistingUserByRoleOrEmail = (roleKey, defaultUsername) => {
+    return users.find((u) => u.role === roleKey || u.email === `${defaultUsername}${DOMINIO}`)
+  }
+
   const yo = session?.user?.id
 
   return (
@@ -79,7 +139,9 @@ export default function UsuariosView({ session }) {
       <header className="content-header">
         <div className="header-info">
           <h1 className="page-title">Usuarios y roles</h1>
-          <p className="page-subtitle">Los administradores gestionan cuentas; los visualizadores solo consultan. Todas las cuentas usan {DOMINIO}.</p>
+          <p className="page-subtitle">
+            Administra usuarios del sistema y genera cuentas directas para los <strong>Operadores de Planta (Tablet)</strong>. Todas las cuentas usan {DOMINIO}.
+          </p>
         </div>
         <button type="button" className="btn-primary" onClick={() => abrir('crear')}>
           <UserPlus size={16} strokeWidth={2.1} style={{ marginRight: 6, verticalAlign: '-3px' }} /> Nuevo usuario
@@ -87,25 +149,201 @@ export default function UsuariosView({ session }) {
       </header>
 
       <section className="content-body">
-        {aviso && <div className="alert-success" role="status" onAnimationEnd={() => {}}><Icon n="check" /> <span>{aviso}</span></div>}
+        {aviso && <div className="alert-success" role="status"><Icon n="check" /> <span>{aviso}</span></div>}
         {error && <div className="alert-error" role="alert"><Icon n="warn" /> <span>{error}</span></div>}
 
+        {/* =========================================================================
+            PANEL DE GENERACIÓN DIRECTA DE OPERADORES PARA TABLET EN PLANTA
+           ========================================================================= */}
+        <div className="operadores-quick-card">
+          <div className="operadores-quick-header">
+            <div className="operadores-quick-title">
+              <span className="operadores-quick-icon-wrap"><Tablet size={20} /></span>
+              <div>
+                <h3 className="operadores-quick-heading">Generación Directa de Operadores (Tablet de Planta)</h3>
+                <p className="operadores-quick-sub">
+                  Los operadores ingresan desde una Tablet móvil y tienen acceso exclusivo a los mantenimientos preventivos donde figuran como responsables.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="operadores-quick-grid">
+            {/* 1. OPERADOR EXTRUSIÓN */}
+            {(() => {
+              const op = ROLES.operador_extrusion
+              const existing = getExistingUserByRoleOrEmail('operador_extrusion', op.defaultUser)
+              return (
+                <div className={`operador-item-card ${existing ? 'is-active' : ''}`}>
+                  <div className="operador-item-top">
+                    <span className="operador-item-badge badge-extrusion">Extrusión</span>
+                    {existing ? (
+                      <span className="operador-status-tag tag-active"><CheckCircle2 size={13} /> Activo</span>
+                    ) : (
+                      <span className="operador-status-tag tag-pending">Pendiente</span>
+                    )}
+                  </div>
+                  <h4 className="operador-item-title">{op.label}</h4>
+                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-desc">
+                    Extrusoras M1, M2, M3, M4 y M5. Tareas visuales, niveles, ruidos y alarmas por turno.
+                  </p>
+                  <div className="operador-item-action">
+                    {existing ? (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => abrir('editar', existing)}
+                      >
+                        <KeyRound size={13} /> Modificar / Clave
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm btn-generate-op"
+                        onClick={() =>
+                          abrir('crear', null, {
+                            nombre: op.defaultUser,
+                            role: 'operador_extrusion',
+                            password: 'Aguacol2026!'
+                          })
+                        }
+                      >
+                        <UserPlus size={13} /> Generar Operador Extrusión
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 2. OPERADOR SOPLADO */}
+            {(() => {
+              const op = ROLES.operador_soplado
+              const existing = getExistingUserByRoleOrEmail('operador_soplado', op.defaultUser)
+              return (
+                <div className={`operador-item-card ${existing ? 'is-active' : ''}`}>
+                  <div className="operador-item-top">
+                    <span className="operador-item-badge badge-soplado">Soplado (PET)</span>
+                    {existing ? (
+                      <span className="operador-status-tag tag-active"><CheckCircle2 size={13} /> Activo</span>
+                    ) : (
+                      <span className="operador-status-tag tag-pending">Pendiente</span>
+                    )}
+                  </div>
+                  <h4 className="operador-item-title">{op.label}</h4>
+                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-desc">
+                    Máquinas Sopladoras S1 y S2 (5LT y Botella). Checklist y levantamiento de turno.
+                  </p>
+                  <div className="operador-item-action">
+                    {existing ? (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => abrir('editar', existing)}
+                      >
+                        <KeyRound size={13} /> Modificar / Clave
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm btn-generate-op"
+                        onClick={() =>
+                          abrir('crear', null, {
+                            nombre: op.defaultUser,
+                            role: 'operador_soplado',
+                            password: 'Aguacol2026!'
+                          })
+                        }
+                      >
+                        <UserPlus size={13} /> Generar Operador Soplado
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 3. OPERADOR INYECCIÓN */}
+            {(() => {
+              const op = ROLES.operador_inyeccion
+              const existing = getExistingUserByRoleOrEmail('operador_inyeccion', op.defaultUser)
+              return (
+                <div className={`operador-item-card ${existing ? 'is-active' : ''}`}>
+                  <div className="operador-item-top">
+                    <span className="operador-item-badge badge-inyeccion">Inyección</span>
+                    {existing ? (
+                      <span className="operador-status-tag tag-active"><CheckCircle2 size={13} /> Activo</span>
+                    ) : (
+                      <span className="operador-status-tag tag-pending">Pendiente</span>
+                    )}
+                  </div>
+                  <h4 className="operador-item-title">{op.label}</h4>
+                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-desc">
+                    Preforma 1, Preforma 2, BORCHE e INY 2. Inspección de tolva, lubricación y ciclo.
+                  </p>
+                  <div className="operador-item-action">
+                    {existing ? (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => abrir('editar', existing)}
+                      >
+                        <KeyRound size={13} /> Modificar / Clave
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm btn-generate-op"
+                        onClick={() =>
+                          abrir('crear', null, {
+                            nombre: op.defaultUser,
+                            role: 'operador_inyeccion',
+                            password: 'Aguacol2026!'
+                          })
+                        }
+                      >
+                        <UserPlus size={13} /> Generar Operador Inyección
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+
+        {/* TABLA PRINCIPAL DE USUARIOS */}
         <div className="table-card">
+          <div className="table-card-header" style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--line)' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc' }}>Todos los usuarios registrados ({users.length})</h3>
+          </div>
           {loading ? (
             <p style={{ padding: '2rem', textAlign: 'center' }}><Loader2 size={18} className="usr-spin" /> Cargando usuarios…</p>
           ) : (
             <div className="table-responsive">
               <table className="data-table">
                 <thead>
-                  <tr><th>Usuario</th><th>Rol</th><th>Último acceso</th><th>Creado</th><th className="text-center">Acciones</th></tr>
+                  <tr><th>Usuario</th><th>Rol / Dispositivo</th><th>Último acceso</th><th>Creado</th><th className="text-center">Acciones</th></tr>
                 </thead>
                 <tbody>
                   {users.map((u) => {
-                    const R = ROLES[u.role]
+                    const R = ROLES[u.role] || ROLES.viewer
+                    const isOp = u.role && u.role.startsWith('operador')
                     return (
                       <tr key={u.id}>
-                        <td><strong>{u.email}</strong>{u.id === yo && <span className="usr-yo">tú</span>}</td>
-                        <td><span className={`usr-rol usr-rol-${u.role}`}><R.Cmp size={14} strokeWidth={2.1} /> {R.label}</span></td>
+                        <td>
+                          <strong>{u.email}</strong>
+                          {u.id === yo && <span className="usr-yo">tú</span>}
+                          {isOp && <span className="tablet-pill-badge"><Tablet size={11} /> Tablet</span>}
+                        </td>
+                        <td>
+                          <span className={`usr-rol ${R.badgeClass || 'usr-rol-viewer'}`}>
+                            <R.Cmp size={14} strokeWidth={2.1} /> {R.label}
+                          </span>
+                        </td>
                         <td>{fmt(u.last_sign_in_at)}</td>
                         <td>{fmt(u.created_at)}</td>
                         <td className="text-center">
@@ -129,6 +367,7 @@ export default function UsuariosView({ session }) {
         </div>
       </section>
 
+      {/* MODAL CREAR / EDITAR / ELIMINAR */}
       {modal && (
         <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar() }}>
           <div className="modal-container usr-modal" role="dialog" aria-modal="true">
@@ -152,23 +391,39 @@ export default function UsuariosView({ session }) {
                       <label className="form-group">
                         <span className="form-label">Usuario</span>
                         <span className="usr-mail">
-                          <input className="form-input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="nombre.apellido" autoFocus autoComplete="off" />
+                          <input
+                            className="form-input"
+                            value={form.nombre}
+                            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                            placeholder="nombre.apellido o operador.area"
+                            autoFocus
+                            autoComplete="off"
+                          />
                           <span className="usr-dom">{DOMINIO}</span>
                         </span>
                       </label>
                     )}
                     <label className="form-group">
                       <span className="form-label">{modal.tipo === 'crear' ? 'Contraseña' : 'Nueva contraseña (opcional)'}</span>
-                      <input className="form-input" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        placeholder="Mínimo 8 caracteres" autoComplete="new-password" />
+                      <input
+                        className="form-input"
+                        type="text"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        placeholder="Mínimo 8 caracteres (ej: Aguacol2026!)"
+                        autoComplete="new-password"
+                      />
                     </label>
                     <fieldset className="usr-roles">
-                      <legend className="form-label">Rol</legend>
+                      <legend className="form-label">Rol y Permisos</legend>
                       {Object.entries(ROLES).map(([k, r]) => (
                         <label key={k} className={`usr-rolopt ${form.role === k ? 'on' : ''}`}>
                           <input type="radio" name="rol" value={k} checked={form.role === k} onChange={() => setForm({ ...form, role: k })} />
                           <r.Cmp size={18} strokeWidth={2} />
-                          <span><strong>{r.label}</strong><small>{r.hint}</small></span>
+                          <span>
+                            <strong>{r.label}</strong>
+                            <small>{r.hint}</small>
+                          </span>
                         </label>
                       ))}
                     </fieldset>

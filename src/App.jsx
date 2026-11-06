@@ -16,6 +16,7 @@ import UsuariosView from './components/UsuariosView'
 import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
 import DisponibilidadKpiView from './components/DisponibilidadKpiView'
 import SolicitudMantenimientoQrView from './components/SolicitudMantenimientoQrView'
+import { getUserRole, isOperatorRole, getOperatorArea } from './lib/authRoles'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
@@ -329,8 +330,18 @@ function App() {
   // Estado de Autenticación
   const [session, setSession] = useState(null)
   const [authChecking, setAuthChecking] = useState(true)
-  // Rol: administrador (puede escribir y gestionar usuarios) o visualizador (solo lectura). Lo hace cumplir la base; esto solo ordena la pantalla.
-  const isAdmin = session?.user?.role === 'mant_admin'
+  // Rol del usuario: administrador, visualizador u operador tablet (Extrusión, Soplado, Inyección)
+  const userRole = getUserRole(session?.user)
+  const isAdmin = userRole === 'admin'
+  const isOperator = isOperatorRole(userRole)
+  const operatorArea = getOperatorArea(userRole, session?.user)
+
+  // Modo Operador (Tablet): forzar navegación exclusiva a Mantenimiento Preventivo
+  useEffect(() => {
+    if (isOperator && activeView !== 'mantenimiento-preventivo') {
+      setActiveView('mantenimiento-preventivo')
+    }
+  }, [isOperator, activeView])
   
   // Estados para Login
   const [loginEmail, setLoginEmail] = useState('')
@@ -921,7 +932,12 @@ function App() {
       } else {
         setLoginEmail('')
         setLoginPassword('')
-        setActiveView('home')
+        const targetRole = getUserRole({ email: correo })
+        if (isOperatorRole(targetRole)) {
+          setActiveView('mantenimiento-preventivo')
+        } else {
+          setActiveView('home')
+        }
       }
     } catch (err) {
       setLoginError('No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.')
@@ -2730,7 +2746,7 @@ function App() {
   }
 
   return (
-    <div className={`app-layout ${isAdmin ? '' : 'modo-lectura'}`}>
+    <div className={`app-layout ${isAdmin || isOperator ? '' : 'modo-lectura'}`}>
       <UpdateBanner />
       {/* Menú lateral */}
       <aside className="sidebar">
@@ -2740,6 +2756,26 @@ function App() {
         </div>
         
         <nav className="sidebar-nav">
+          {isOperator ? (
+            <div className="nav-section">
+              <h3 className="nav-section-title" style={{ color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Icon n="tool" /> Modo Tablet Planta
+              </h3>
+              <ul className="nav-list">
+                <li>
+                  <button
+                    type="button"
+                    className="nav-item active"
+                    onClick={() => setActiveView('mantenimiento-preventivo')}
+                  >
+                    <span className="nav-item-icon"><Icon n="calendar-check" /></span>
+                    <span>Preventivo {operatorArea ? `· ${operatorArea}` : ''}</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          ) : (
+            <>
           {/* GRUPO 1: GENERAL */}
           <div className="nav-section">
             <h3 className="nav-section-title">General</h3>
@@ -2926,6 +2962,8 @@ function App() {
               </ul>
             </div>
           )}
+            </>
+          )}
         </nav>
 
         {/* Footer del Menú con Estado de Sesión */}
@@ -2933,7 +2971,7 @@ function App() {
           {session ? (
             <>
               <div className="user-badge">
-                <span className="user-role">{isAdmin ? 'Administrador' : 'Visualizador'}</span>
+                <span className="user-role">{isAdmin ? 'Administrador' : isOperator ? `Operador ${operatorArea || 'Tablet'}` : 'Visualizador'}</span>
                 <span className="user-email" title={session.user.email}>
                   {session.user.email}
                 </span>
@@ -2963,6 +3001,16 @@ function App() {
 
       {/* Área principal */}
       <main className="main-content">
+        {isOperator ? (
+          <MantenimientoPreventivoView
+            session={session}
+            isAdmin={isAdmin}
+            isOperator={isOperator}
+            operatorArea={operatorArea}
+            onBack={null}
+          />
+        ) : (
+          <>
         {/* VISTA 0: Home General */}
         {activeView === 'home' && (
           <>
@@ -4688,6 +4736,8 @@ function App() {
           <MantenimientoPreventivoView
             session={session}
             isAdmin={isAdmin}
+            isOperator={isOperator}
+            operatorArea={operatorArea}
             onBack={() => setActiveView('home')}
           />
         )}
@@ -6563,6 +6613,8 @@ function App() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </main>
     </div>

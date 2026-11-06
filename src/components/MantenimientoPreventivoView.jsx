@@ -32,10 +32,22 @@ const formatFechaHora = (val) => {
   }
 }
 
-export default function MantenimientoPreventivoView({ session, isAdmin = false, onBack }) {
+export default function MantenimientoPreventivoView({
+  session,
+  _isAdmin = false,
+  isOperator = false,
+  operatorArea = null,
+  onBack,
+}) {
   // Estado de navegación: null = selector de máquinas, o máquina seleccionada { id, codigo, nombre, titulo, alias, familia, ... }
   const [selectedMaquina, setSelectedMaquina] = useState(null)
-  const [selectedFamilia, setSelectedFamilia] = useState('Todas')
+  const [selectedFamilia, setSelectedFamilia] = useState(isOperator && operatorArea ? operatorArea : 'Todas')
+
+  useEffect(() => {
+    if (isOperator && operatorArea) {
+      setSelectedFamilia(operatorArea)
+    }
+  }, [isOperator, operatorArea])
   const [activeTab, setActiveTab] = useState('plan') // 'plan' | 'historial'
 
   // Datos
@@ -109,13 +121,18 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
     return map
   }, [historial])
 
-  // Máquinas visibles según la familia seleccionada
+  // Máquinas visibles según la familia seleccionada (o área obligatoria del operador tablet)
   const maquinasVisibles = useMemo(() => {
+    if (isOperator && operatorArea) {
+      return MAQUINAS_PREVENTIVO.filter(
+        (m) => m.familia.toLowerCase() === operatorArea.toLowerCase()
+      )
+    }
     if (!selectedFamilia || selectedFamilia === 'Todas') {
       return MAQUINAS_PREVENTIVO
     }
     return MAQUINAS_PREVENTIVO.filter((m) => m.familia === selectedFamilia)
-  }, [selectedFamilia])
+  }, [selectedFamilia, isOperator, operatorArea])
 
   // Conteo de máquinas por familia
   const conteoFamilias = useMemo(() => {
@@ -135,9 +152,13 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
     return Array.from(s).sort()
   }, [tareas])
 
-  // Tareas filtradas
+  // Tareas filtradas (si es operador en Tablet, filtrar estrictamente tareas donde responsable sea 'Operador')
   const filteredTareas = useMemo(() => {
     return tareas.filter((t) => {
+      if (isOperator) {
+        const resp = (t.responsable || '').toLowerCase()
+        if (!resp.includes('operador')) return false
+      }
       if (frecuenciaFilter !== 'todas' && t.frecuencia !== frecuenciaFilter) {
         return false
       }
@@ -151,7 +172,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
       }
       return true
     })
-  }, [tareas, searchFilter, frecuenciaFilter])
+  }, [tareas, searchFilter, frecuenciaFilter, isOperator])
 
   // Abrir modal de ejecución
   const handleOpenEjecutar = (tarea) => {
@@ -387,7 +408,24 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
          ========================================================================= */}
       {!selectedMaquina && (
         <>
-          <div className="mp-family-bar">
+          {isOperator ? (
+            <div className="mp-tablet-operator-banner">
+              <div className="mp-tablet-badge">
+                <Icon n="tool" size="1.1em" /> TABLET EN PLANTA
+              </div>
+              <div className="mp-tablet-details">
+                <h2 className="mp-tablet-title">Operador de {operatorArea || 'Planta'}</h2>
+                <p className="mp-tablet-subtitle">
+                  Checklist y tareas preventivas asignadas exclusivamente al operador. Selecciona la máquina para registrar inicio, observaciones, evidencias fotográficas/video y cierre.
+                </p>
+              </div>
+              <div className="mp-tablet-user-pill">
+                <Icon n="user" size="0.95em" />
+                <span>{session?.user?.email || 'operador@aguacol.cl'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="mp-family-bar">
             {FAMILIAS_PREVENTIVO.map((fam) => {
               const count = conteoFamilias[fam] || 0
               const isActive = selectedFamilia === fam
@@ -415,6 +453,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
               )
             })}
           </div>
+          )}
 
           <div className="mp-machines-grid">
             {maquinasVisibles.map((maq) => (
@@ -479,7 +518,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
                     </div>
                   )}
                   <p className="mp-machine-tasks-count" style={{ marginTop: '0.5rem' }}>
-                    <Icon n="list" size="0.9em" /> 19 tareas preventivas consolidadas
+                    <Icon n="list" size="0.9em" /> {isOperator ? 'Checklist / Preventivo Operador' : 'Tareas preventivas consolidadas'}
                   </p>
                 </div>
 
@@ -506,7 +545,7 @@ export default function MantenimientoPreventivoView({ session, isAdmin = false, 
               className={`mp-tab-btn ${activeTab === 'plan' ? 'active' : ''}`}
               onClick={() => setActiveTab('plan')}
             >
-              <Icon n="list" size="1em" /> Plan preventivo ({tareas.length})
+              <Icon n="list" size="1em" /> {isOperator ? 'Tareas Operador' : 'Plan preventivo'} ({filteredTareas.length})
             </button>
             <button
               type="button"
