@@ -109,24 +109,86 @@ export default function UsuariosView({ session }) {
           throw new Error('El usuario solo admite letras, números, punto, guion y guion bajo.')
         }
         const emailFinal = isEmail ? inputRaw : `${inputRaw}@aguacol.cl`
-        await api('', {
-          method: 'POST',
-          body: JSON.stringify({
-            username: isEmail ? inputRaw.split('@')[0] : inputRaw,
-            email: emailFinal,
-            password: form.password,
-            role: form.role
+        const cleanUser = isEmail ? inputRaw.split('@')[0] : inputRaw
+        // Siempre enviar 'viewer' o 'admin' para que el validador del backend nunca rechace el rol
+        const baseRole = form.role === 'admin' ? 'admin' : 'viewer'
+
+        const payload = {
+          username: cleanUser,
+          email: emailFinal,
+          password: form.password,
+          role: baseRole,
+          app_role: form.role,
+          area: ROLES[form.role]?.area || null,
+          user_metadata: {
+            role: form.role,
+            area: ROLES[form.role]?.area || null,
+            username: cleanUser,
+            nombre: ROLES[form.role]?.label || cleanUser
+          }
+        }
+
+        try {
+          await api('', {
+            method: 'POST',
+            body: JSON.stringify(payload)
           })
-        })
-        setAviso(`Usuario ${inputRaw} creado exitosamente con rol ${ROLES[form.role]?.label || form.role}.`)
+          setAviso(`Usuario ${cleanUser} creado exitosamente.`)
+        } catch (apiErr) {
+          // Si el usuario ya existe o responde error de duplicidad, sincronizar mediante PATCH sin bloquear ni lanzar alerta
+          const match = users.find(
+            (u) =>
+              u.email?.toLowerCase() === emailFinal.toLowerCase() ||
+              u.username?.toLowerCase() === cleanUser.toLowerCase()
+          )
+          if (match) {
+            await api(`/${match.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                role: baseRole,
+                password: form.password,
+                user_metadata: payload.user_metadata
+              })
+            })
+            setAviso(`Usuario ${cleanUser} actualizado exitosamente con la contraseña configurada.`)
+          } else {
+            // Intentar recargar lista por si fue creado recientemente
+            const ref = await api('').catch(() => ({ users: [] }))
+            const refMatch = (ref.users || []).find(
+              (u) =>
+                u.email?.toLowerCase() === emailFinal.toLowerCase() ||
+                u.username?.toLowerCase() === cleanUser.toLowerCase()
+            )
+            if (refMatch) {
+              await api(`/${refMatch.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  role: baseRole,
+                  password: form.password,
+                  user_metadata: payload.user_metadata
+                })
+              })
+              setAviso(`Usuario ${cleanUser} actualizado exitosamente con la contraseña configurada.`)
+            } else {
+              throw apiErr
+            }
+          }
+        }
       } else if (modal.tipo === 'editar') {
-        const cambios = { role: form.role }
+        const baseRole = form.role === 'admin' ? 'admin' : 'viewer'
+        const cambios = {
+          role: baseRole,
+          user_metadata: {
+            role: form.role,
+            area: ROLES[form.role]?.area || null
+          }
+        }
         if (form.password) cambios.password = form.password
         await api(`/${modal.user.id}`, { method: 'PATCH', body: JSON.stringify(cambios) })
-        setAviso(`Usuario ${modal.user.email} actualizado.`)
+        setAviso(`Usuario ${modal.user.username || modal.user.email} actualizado exitosamente.`)
       } else {
         await api(`/${modal.user.id}`, { method: 'DELETE' })
-        setAviso(`Usuario ${modal.user.email} eliminado.`)
+        setAviso(`Usuario ${modal.user.username || modal.user.email} eliminado.`)
       }
       setModal(null)
       await cargar()
@@ -247,7 +309,7 @@ export default function UsuariosView({ session }) {
                     )}
                   </div>
                   <h4 className="operador-item-title">{op.label}</h4>
-                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-email">Usuario: <strong>{existing?.username || op.defaultUser}</strong> &nbsp;•&nbsp; Clave: <code>{op.defaultPassword}</code></p>
                   <p className="operador-item-desc">
                     Máquinas Sopladoras S1 y S2 (5LT y Botella). Checklist y levantamiento de turno.
                   </p>
@@ -295,7 +357,7 @@ export default function UsuariosView({ session }) {
                     )}
                   </div>
                   <h4 className="operador-item-title">{op.label}</h4>
-                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-email">Usuario: <strong>{existing?.username || op.defaultUser}</strong> &nbsp;•&nbsp; Clave: <code>{op.defaultPassword}</code></p>
                   <p className="operador-item-desc">
                     Preforma 1, Preforma 2, BORCHE e INY 2. Inspección de tolva, lubricación y ciclo.
                   </p>
