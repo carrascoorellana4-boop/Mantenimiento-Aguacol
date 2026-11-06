@@ -12,6 +12,7 @@ import {
   guardarProgresoTarea,
   calcularHorasTurnoMantenimiento,
   formatHorasTurno,
+  crearOtPorHallazgoPreventivo,
 } from '../services/preventivoService'
 
 const formatFechaHora = (val) => {
@@ -65,6 +66,7 @@ export default function MantenimientoPreventivoView({
   const [ejecutarModalTarea, setEjecutarModalTarea] = useState(null)
   const [activeEjecucion, setActiveEjecucion] = useState(null)
   const [observaciones, setObservaciones] = useState('')
+  const [condicionEquipo, setCondicionEquipo] = useState('sin_observaciones') // 'sin_observaciones' | 'con_observaciones'
   const [evidenciasAdjuntas, setEvidenciasAdjuntas] = useState([])
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [savingEjecucion, setSavingEjecucion] = useState(false)
@@ -179,7 +181,13 @@ export default function MantenimientoPreventivoView({
     const ejec = ejecucionesPorTarea.get(tarea.id) || ejecucionesPorTarea.get(tarea.tarea) || null
     setEjecutarModalTarea(tarea)
     setActiveEjecucion(ejec)
-    setObservaciones(ejec?.observaciones || '')
+    const prevObs = ejec?.observaciones || ''
+    setObservaciones(prevObs)
+    if (prevObs && !prevObs.toLowerCase().includes('sin observaciones')) {
+      setCondicionEquipo('con_observaciones')
+    } else {
+      setCondicionEquipo('sin_observaciones')
+    }
     setEvidenciasAdjuntas(
       (ejec?.evidencias || []).map((ev) => ({
         ...ev,
@@ -196,6 +204,7 @@ export default function MantenimientoPreventivoView({
     setEjecutarModalTarea(null)
     setActiveEjecucion(null)
     setObservaciones('')
+    setCondicionEquipo('sin_observaciones')
     setEvidenciasAdjuntas([])
     setConfirmStep(false)
   }
@@ -249,28 +258,69 @@ export default function MantenimientoPreventivoView({
     }
   }
 
-  // Cerrar y finalizar tarea (registra automáticamente la hora de cierre)
-  const handleCerrarTarea = async () => {
-    if (!activeEjecucion || !selectedMaquina) return
+  // Cerrar y finalizar tarea:
+  // Si conObservaciones === true -> valida comentario, cierra y crea automáticamente una OT en estado Pendiente
+  // Si conObservaciones === false -> cierra como conforme, no crea OT y sube al historial preventivo
+  const handleCerrarTarea = async (conObservaciones = false) => {
+    if (!selectedMaquina || !ejecutarModalTarea) return
+
+    if (conObservaciones && !observaciones.trim()) {
+      setErrorMsg('Debes explicar en el cuadro de comentarios qué problema se detectó y qué se debe solucionar.')
+      return
+    }
 
     setSavingEjecucion(true)
     setErrorMsg('')
     setSuccessMsg('')
 
     try {
+      let currentEjec = activeEjecucion
+      // Si aún no se había marcado inicio, iniciarlo de inmediato
+      if (!currentEjec) {
+        const initRes = await iniciarEjecucionTarea({
+          tarea: ejecutarModalTarea,
+          codigo_equipo: selectedMaquina.codigo,
+          session,
+        })
+        currentEjec = initRes.ejecucion
+      }
+
+      const obsFinal = conObservaciones
+        ? observaciones.trim()
+        : 'Equipo sin observaciones de funcionamiento. Inspección preventiva conforme.'
+
       const res = await cerrarEjecucionTarea({
-        ejecucionId: activeEjecucion.id,
+        ejecucionId: currentEjec.id,
         tarea: ejecutarModalTarea,
         codigo_equipo: selectedMaquina.codigo,
-        fecha_hora_inicio: activeEjecucion.fecha_hora_inicio,
-        observaciones,
+        fecha_hora_inicio: currentEjec.fecha_hora_inicio,
+        observaciones: obsFinal,
         evidencias: evidenciasAdjuntas,
         session,
       })
 
-      setSuccessMsg(
-        `¡Tarea preventiva finalizada con éxito! Hora de cierre registrada. Tiempo efectivo en turno: ${formatHorasTurno(res.horasEfectivas)}.`
-      )
+      let otData = null
+      // Si tiene observaciones, generar inmediatamente una Orden de Trabajo en Pendientes
+      if (conObservaciones) {
+        otData = await crearOtPorHallazgoPreventivo({
+          codigo_equipo: selectedMaquina.codigo,
+          tarea_codigo: ejecutarModalTarea.id_tarea_fuente || '',
+          tarea_nombre: ejecutarModalTarea.tarea || '',
+          observacion: obsFinal,
+          session,
+          evidencias: evidenciasAdjuntas,
+        })
+      }
+
+      if (otData?.codigo_ot) {
+        setSuccessMsg(
+          `¡Inspección finalizada con observaciones! Se generó automáticamente la Orden de Trabajo N° ${otData.codigo_ot} en estado Pendiente para revisión.`
+        )
+      } else {
+        setSuccessMsg(
+          `¡Inspección preventiva conforme finalizada con éxito! Hora de cierre registrada (${formatHorasTurno(res.horasEfectivas)} computables).`
+        )
+      }
 
       const updatedHist = await getHistorialEjecuciones(selectedMaquina.codigo)
       setHistorial(updatedHist.ejecuciones || [])
@@ -278,7 +328,7 @@ export default function MantenimientoPreventivoView({
       handleCloseEjecutar()
       setActiveTab('historial')
     } catch (err) {
-      setErrorMsg('Error al finalizar tarea: ' + (err?.message || err))
+      setErrorMsg('Error al finalizar tarea preventiva: ' + (err?.message || err))
     } finally {
       setSavingEjecucion(false)
     }
@@ -816,9 +866,15 @@ export default function MantenimientoPreventivoView({
                           </div>
 
                           {ej.observaciones && (
-                            <p className="mp-history-comment">
-                              <strong>Observaciones:</strong> {ej.observaciones}
-                            </p>
+                            <div style={{ marginTop: '0.6rem' }}>
+                              <div className={`mp-history-result-badge ${(ej.observaciones || '').toLowerCase().includes('sin observaciones') ? 'badge-ok' : 'badge-alert'}`}>
+                                <Icon n={(ej.observaciones || '').toLowerCase().includes('sin observaciones') ? 'check' : 'warn'} size="0.95em" />
+                                <span>{(ej.observaciones || '').toLowerCase().includes('sin observaciones') ? 'Inspección Conforme' : 'Con Observaciones (OT Generada)'}</span>
+                              </div>
+                              <p className="mp-history-comment" style={{ marginTop: '0.4rem' }}>
+                                <strong>Observaciones:</strong> {ej.observaciones}
+                              </p>
+                            </div>
                           )}
 
                           {evidencias.length > 0 && (
@@ -1048,134 +1104,200 @@ export default function MantenimientoPreventivoView({
                 </div>
               </div>
 
-              {/* SECCIÓN EVIDENCIAS Y OBSERVACIONES (CUANDO ESTÁ EN CURSO O POR CERRAR) */}
+              {/* SECCIÓN CONDICIÓN DEL EQUIPO Y EVALUACIÓN PREVENTIVA */}
               {activeEjecucion?.estado === 'En curso' || !activeEjecucion ? (
                 <>
-                  <div className="mp-evidence-section">
-                    <h3 className="mp-evidence-section-title">
-                      <Icon n="camera" size="1.1em" /> Evidencia de ejecución (Fotos y Videos)
-                    </h3>
-
-                    <div className="mp-upload-buttons-row">
+                  <div className="mp-condicion-selector">
+                    <span className="mp-condicion-title">
+                      <Icon n="tool" size="1.1em" /> Condición del equipo en esta inspección:
+                    </span>
+                    <div className="mp-condicion-grid">
                       <button
                         type="button"
-                        className="mp-btn-upload"
-                        onClick={() => fotoCamaraRef.current?.click()}
-                        disabled={uploadingMedia || savingEjecucion}
+                        className={`mp-condicion-card card-conforme ${condicionEquipo === 'sin_observaciones' ? 'selected' : ''}`}
+                        onClick={() => setCondicionEquipo('sin_observaciones')}
                       >
-                        <Icon n="camera" size="1.1em" /> Tomar Foto
+                        <div className="mp-condicion-card-header">
+                          <span className="mp-condicion-icon">
+                            <Icon n="check" size="1.2em" />
+                          </span>
+                          <strong className="mp-condicion-heading">Equipo sin observaciones de funcionamiento</strong>
+                        </div>
+                        <p className="mp-condicion-desc">
+                          Inspección conforme. El equipo opera en condiciones normales sin ruidos ni fugas.
+                        </p>
+                        {condicionEquipo === 'sin_observaciones' && (
+                          <span className="mp-condicion-selected-tag tag-conforme">
+                            ✓ Conforme: Listo para cerrar tarea
+                          </span>
+                        )}
                       </button>
-                      <input
-                        ref={fotoCamaraRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleFileSelected(e, 'Foto')}
-                      />
-
-                      <button
-                        type="button"
-                        className="mp-btn-upload"
-                        onClick={() => fotoArchivoRef.current?.click()}
-                        disabled={uploadingMedia || savingEjecucion}
-                      >
-                        <Icon n="upload" size="1.1em" /> Subir Imagen
-                      </button>
-                      <input
-                        ref={fotoArchivoRef}
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleFileSelected(e, 'Foto')}
-                      />
 
                       <button
                         type="button"
-                        className="mp-btn-upload"
-                        onClick={() => videoCamaraRef.current?.click()}
-                        disabled={uploadingMedia || savingEjecucion}
+                        className={`mp-condicion-card card-alerta ${condicionEquipo === 'con_observaciones' ? 'selected' : ''}`}
+                        onClick={() => setCondicionEquipo('con_observaciones')}
                       >
-                        <Icon n="video" size="1.1em" /> Grabar Video
+                        <div className="mp-condicion-card-header">
+                          <span className="mp-condicion-icon">
+                            <Icon n="warn" size="1.2em" />
+                          </span>
+                          <strong className="mp-condicion-heading">Equipo con observaciones de funcionamiento</strong>
+                        </div>
+                        <p className="mp-condicion-desc">
+                          Se detectó un problema o anomalía a solucionar. Generará una Orden de Trabajo en Pendiente.
+                        </p>
+                        {condicionEquipo === 'con_observaciones' && (
+                          <span className="mp-condicion-selected-tag tag-alerta">
+                            ⚠️ Con hallazgo: Requiere comentario y OT
+                          </span>
+                        )}
                       </button>
-                      <input
-                        ref={videoCamaraRef}
-                        type="file"
-                        accept="video/*"
-                        capture="environment"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleFileSelected(e, 'Video')}
-                      />
-
-                      <button
-                        type="button"
-                        className="mp-btn-upload"
-                        onClick={() => videoArchivoRef.current?.click()}
-                        disabled={uploadingMedia || savingEjecucion}
-                      >
-                        <Icon n="upload" size="1.1em" /> Subir Video
-                      </button>
-                      <input
-                        ref={videoArchivoRef}
-                        type="file"
-                        accept="video/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleFileSelected(e, 'Video')}
-                      />
                     </div>
+                  </div>
 
-                    {uploadingMedia && (
-                      <p style={{ fontSize: '0.85rem', color: '#38bdf8', margin: '0.25rem 0' }}>
-                        <Icon n="wait" size="1em" /> Procesando y subiendo archivo...
-                      </p>
-                    )}
-
-                    {evidenciasAdjuntas.length > 0 && (
-                      <div className="mp-attached-gallery">
-                        {evidenciasAdjuntas.map((item) => (
-                          <div key={item.id} className="mp-attached-item">
-                            {item.tipo === 'Video' ? (
-                              <video src={item.url} />
-                            ) : (
-                              <img src={item.url} alt="Evidencia previa" />
-                            )}
-                            <button
-                              type="button"
-                              className="mp-attached-remove"
-                              onClick={() => handleRemoveEvidencia(item.id)}
-                              title="Eliminar evidencia"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
+                  {condicionEquipo === 'sin_observaciones' ? (
+                    <div className="mp-condicion-notice notice-conforme">
+                      <Icon n="check" size="1.4em" />
+                      <div>
+                        <strong>Inspección Preventiva Conforme</strong>
+                        <p>
+                          El equipo no presenta observaciones. Al finalizar, la tarea se cerrará automáticamente, registrando hora de término y subiendo el resultado conforme al historial.
+                        </p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mp-condicion-notice notice-alerta">
+                        <Icon n="warn" size="1.4em" />
+                        <div>
+                          <strong>Equipo con Observaciones de Funcionamiento</strong>
+                          <p>
+                            Explica a continuación qué anomalía se detectó y qué se debe solucionar. Se creará automáticamente una <strong>Orden de Trabajo en estado Pendiente</strong> para revisión de Mantenimiento.
+                          </p>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label
-                      htmlFor="mp-obs-input"
-                      style={{
-                        display: 'block',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        color: '#ffffff',
-                        marginBottom: '0.4rem',
-                      }}
-                    >
-                      Observaciones / Hallazgos operativos:
-                    </label>
-                    <textarea
-                      id="mp-obs-input"
-                      rows={3}
-                      className="mp-search-input"
-                      style={{ width: '100%', resize: 'vertical' }}
-                      placeholder="Indica ajustes realizados, repuestos intervenidos o novedades de turno..."
-                      value={observaciones}
-                      onChange={(e) => setObservaciones(e.target.value)}
-                    />
-                  </div>
+                      {/* CUADRO OBLIGATORIO DE COMENTARIOS */}
+                      <div className="mp-obs-wrapper">
+                        <label htmlFor="mp-obs-input" className="mp-obs-title">
+                          Describe el problema o trabajo requerido a solucionar (* obligatorio):
+                        </label>
+                        <textarea
+                          id="mp-obs-input"
+                          rows={3}
+                          className="mp-search-input mp-obs-textarea"
+                          placeholder="Explica qué se encontró en el equipo (fuga, ruido anormal, temperatura, ajuste o pieza dañada) y lo que se debe solucionar..."
+                          value={observaciones}
+                          onChange={(e) => setObservaciones(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      {/* SECCIÓN EVIDENCIA MULTIMEDIA OBLIGATORIA / RECOMENDADA */}
+                      <div className="mp-evidence-section">
+                        <h3 className="mp-evidence-section-title">
+                          <Icon n="camera" size="1.1em" /> Registro fotográfico o video del problema encontrado:
+                        </h3>
+
+                        <div className="mp-upload-buttons-row">
+                          <button
+                            type="button"
+                            className="mp-btn-upload"
+                            onClick={() => fotoCamaraRef.current?.click()}
+                            disabled={uploadingMedia || savingEjecucion}
+                          >
+                            <Icon n="camera" size="1.1em" /> Tomar Foto (Cámara)
+                          </button>
+                          <input
+                            ref={fotoCamaraRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileSelected(e, 'Foto')}
+                          />
+
+                          <button
+                            type="button"
+                            className="mp-btn-upload"
+                            onClick={() => fotoArchivoRef.current?.click()}
+                            disabled={uploadingMedia || savingEjecucion}
+                          >
+                            <Icon n="upload" size="1.1em" /> Subir Imagen
+                          </button>
+                          <input
+                            ref={fotoArchivoRef}
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileSelected(e, 'Foto')}
+                          />
+
+                          <button
+                            type="button"
+                            className="mp-btn-upload"
+                            onClick={() => videoCamaraRef.current?.click()}
+                            disabled={uploadingMedia || savingEjecucion}
+                          >
+                            <Icon n="video" size="1.1em" /> Grabar Video (Cámara)
+                          </button>
+                          <input
+                            ref={videoCamaraRef}
+                            type="file"
+                            accept="video/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileSelected(e, 'Video')}
+                          />
+
+                          <button
+                            type="button"
+                            className="mp-btn-upload"
+                            onClick={() => videoArchivoRef.current?.click()}
+                            disabled={uploadingMedia || savingEjecucion}
+                          >
+                            <Icon n="upload" size="1.1em" /> Subir Video
+                          </button>
+                          <input
+                            ref={videoArchivoRef}
+                            type="file"
+                            accept="video/*"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileSelected(e, 'Video')}
+                          />
+                        </div>
+
+                        {uploadingMedia && (
+                          <p style={{ fontSize: '0.85rem', color: '#38bdf8', margin: '0.25rem 0' }}>
+                            <Icon n="wait" size="1em" /> Procesando y subiendo archivo...
+                          </p>
+                        )}
+
+                        {evidenciasAdjuntas.length > 0 && (
+                          <div className="mp-attached-gallery">
+                            {evidenciasAdjuntas.map((item) => (
+                              <div key={item.id} className="mp-attached-item">
+                                {item.tipo === 'Video' ? (
+                                  <video src={item.url} />
+                                ) : (
+                                  <img src={item.url} alt="Evidencia previa" />
+                                )}
+                                <button
+                                  type="button"
+                                  className="mp-attached-remove"
+                                  onClick={() => handleRemoveEvidencia(item.id)}
+                                  title="Eliminar evidencia"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 /* VISTA DE TAREA YA REALIZADA PREVIAMENTE */
@@ -1222,53 +1344,110 @@ export default function MantenimientoPreventivoView({
 
               {/* CASO 1: NO INICIADA */}
               {!activeEjecucion && (
-                <button
-                  type="button"
-                  className="mp-btn-confirm"
-                  style={{ background: '#10b981' }}
-                  onClick={handleIniciarTarea}
-                  disabled={savingEjecucion}
-                >
-                  {savingEjecucion ? (
-                    <>
-                      <Icon n="wait" size="1em" /> Iniciando...
-                    </>
-                  ) : (
-                    <>
-                      <Icon n="clock" size="1em" /> Iniciar Tarea (Registrar Comienzo)
-                    </>
-                  )}
-                </button>
-              )}
-
-              {/* CASO 2: EN CURSO */}
-              {activeEjecucion?.estado === 'En curso' && (
                 <>
                   <button
                     type="button"
                     className="mp-btn-cancel"
                     style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
-                    onClick={handleGuardarAvance}
+                    onClick={handleIniciarTarea}
                     disabled={savingEjecucion}
+                    title="Registra el inicio de la tarea para comenzar a contabilizar el turno"
                   >
-                    Guardar Avance
+                    <Icon n="clock" size="1em" /> Iniciar Cronómetro
                   </button>
-                  <button
-                    type="button"
-                    className="mp-btn-confirm"
-                    onClick={handleCerrarTarea}
-                    disabled={savingEjecucion}
-                  >
-                    {savingEjecucion ? (
-                      <>
-                        <Icon n="wait" size="1em" /> Cerrando...
-                      </>
-                    ) : (
-                      <>
-                        <Icon n="check" size="1em" /> Cerrar Tarea (Registrar Cierre)
-                      </>
-                    )}
-                  </button>
+
+                  {condicionEquipo === 'sin_observaciones' ? (
+                    <button
+                      type="button"
+                      className="mp-btn-confirm"
+                      style={{ background: '#10b981', borderColor: '#059669' }}
+                      onClick={() => handleCerrarTarea(false)}
+                      disabled={savingEjecucion}
+                    >
+                      {savingEjecucion ? (
+                        <>
+                          <Icon n="wait" size="1em" /> Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Icon n="check" size="1em" /> Finalizar Tarea (Sin Observaciones)
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="mp-btn-confirm"
+                      style={{ background: '#f59e0b', borderColor: '#d97706', color: '#0f172a', fontWeight: 700 }}
+                      onClick={() => handleCerrarTarea(true)}
+                      disabled={savingEjecucion || !observaciones.trim()}
+                    >
+                      {savingEjecucion ? (
+                        <>
+                          <Icon n="wait" size="1em" /> Creando OT...
+                        </>
+                      ) : (
+                        <>
+                          <Icon n="warn" size="1em" /> Finalizar Tarea y Generar OT Pendiente
+                        </>
+                      )}
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* CASO 2: EN CURSO */}
+              {activeEjecucion?.estado === 'En curso' && (
+                <>
+                  {condicionEquipo === 'con_observaciones' && (
+                    <button
+                      type="button"
+                      className="mp-btn-cancel"
+                      style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+                      onClick={handleGuardarAvance}
+                      disabled={savingEjecucion}
+                    >
+                      Guardar Avance
+                    </button>
+                  )}
+
+                  {condicionEquipo === 'sin_observaciones' ? (
+                    <button
+                      type="button"
+                      className="mp-btn-confirm"
+                      style={{ background: '#10b981', borderColor: '#059669' }}
+                      onClick={() => handleCerrarTarea(false)}
+                      disabled={savingEjecucion}
+                    >
+                      {savingEjecucion ? (
+                        <>
+                          <Icon n="wait" size="1em" /> Cerrando...
+                        </>
+                      ) : (
+                        <>
+                          <Icon n="check" size="1em" /> Cerrar Tarea (Sin Observaciones)
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="mp-btn-confirm"
+                      style={{ background: '#f59e0b', borderColor: '#d97706', color: '#0f172a', fontWeight: 700 }}
+                      onClick={() => handleCerrarTarea(true)}
+                      disabled={savingEjecucion || !observaciones.trim()}
+                    >
+                      {savingEjecucion ? (
+                        <>
+                          <Icon n="wait" size="1em" /> Generando OT...
+                        </>
+                      ) : (
+                        <>
+                          <Icon n="warn" size="1em" /> Cerrar Tarea y Generar OT Pendiente
+                        </>
+                      )}
+                    </button>
+                  )}
                 </>
               )}
 

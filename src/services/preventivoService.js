@@ -561,3 +561,43 @@ export async function registrarEjecucion({
 
   return { success: true, ejecucion: localCopy, dbOk }
 }
+
+/**
+ * Genera una Orden de Trabajo (OT) automática en estado 'Pendiente' cuando
+ * se detecta un hallazgo u observación de funcionamiento en una tarea preventiva.
+ */
+export async function crearOtPorHallazgoPreventivo({
+  codigo_equipo,
+  tarea_codigo,
+  tarea_nombre,
+  observacion,
+  session,
+  evidencias = [],
+}) {
+  const user = session?.user
+  const operadorNombre =
+    user?.user_metadata?.nombre ||
+    user?.user_metadata?.username ||
+    user?.email?.split('@')[0] ||
+    'Operador'
+  const operadorEmail = user?.email || 'operador@aguacol.cl'
+
+  const evidenciasUrls = evidencias.map((ev) => ev.url).filter(Boolean)
+
+  const { data, error } = await supabase.rpc('crear_ot_hallazgo_preventivo', {
+    p_codigo_equipo: codigo_equipo,
+    p_tarea_codigo: tarea_codigo || '',
+    p_tarea_nombre: tarea_nombre || '',
+    p_observacion: observacion,
+    p_operador_nombre: operadorNombre,
+    p_operador_email: operadorEmail,
+    p_evidencias_urls: evidenciasUrls,
+  })
+
+  if (error) {
+    console.error('Error al invocar crear_ot_hallazgo_preventivo:', error)
+    throw new Error(error.message || 'No se pudo generar la orden de trabajo.')
+  }
+
+  return data
+}
