@@ -22,7 +22,8 @@ export const ROLES = {
     hint: 'Acceso exclusivo en Tablet a pautas preventivas de Extrusión (M1..M5) bajo su responsabilidad.',
     badgeClass: 'usr-rol-operador-extrusion',
     area: 'Extrusión',
-    defaultUser: 'operador.extrusion',
+    defaultUser: 'opextrusion',
+    defaultPassword: 'Extrusion2026',
     Cmp: Tablet
   },
   operador_soplado: {
@@ -30,7 +31,8 @@ export const ROLES = {
     hint: 'Acceso exclusivo en Tablet a pautas preventivas de Soplado (S1, S2) bajo su responsabilidad.',
     badgeClass: 'usr-rol-operador-soplado',
     area: 'Soplado',
-    defaultUser: 'operador.soplado',
+    defaultUser: 'opsoplado',
+    defaultPassword: 'Soplado2026',
     Cmp: Tablet
   },
   operador_inyeccion: {
@@ -38,7 +40,8 @@ export const ROLES = {
     hint: 'Acceso exclusivo en Tablet a pautas preventivas de Inyección (Preformas, Borche, INY 2) bajo su responsabilidad.',
     badgeClass: 'usr-rol-operador-inyeccion',
     area: 'Inyección',
-    defaultUser: 'operador.inyeccion',
+    defaultUser: 'opinyeccion',
+    defaultPassword: 'Inyeccion2026',
     Cmp: Tablet
   },
 }
@@ -99,17 +102,23 @@ export default function UsuariosView({ session }) {
     setSaving(true)
     try {
       if (modal.tipo === 'crear') {
-        const nombre = form.nombre.trim().toLowerCase()
-        if (!/^[a-z0-9][a-z0-9._-]*$/.test(nombre)) throw new Error('El usuario solo admite letras, números, punto, guion y guion bajo.')
+        const inputRaw = form.nombre.trim().toLowerCase()
+        if (!inputRaw) throw new Error('Ingresa un nombre de usuario o correo.')
+        const isEmail = inputRaw.includes('@')
+        if (!isEmail && !/^[a-z0-9][a-z0-9._-]*$/.test(inputRaw)) {
+          throw new Error('El usuario solo admite letras, números, punto, guion y guion bajo.')
+        }
+        const emailFinal = isEmail ? inputRaw : `${inputRaw}@aguacol.cl`
         await api('', {
           method: 'POST',
           body: JSON.stringify({
-            email: `${nombre}${DOMINIO}`,
+            username: isEmail ? inputRaw.split('@')[0] : inputRaw,
+            email: emailFinal,
             password: form.password,
             role: form.role
           })
         })
-        setAviso(`Usuario ${nombre}${DOMINIO} creado exitosamente con rol ${ROLES[form.role]?.label || form.role}.`)
+        setAviso(`Usuario ${inputRaw} creado exitosamente con rol ${ROLES[form.role]?.label || form.role}.`)
       } else if (modal.tipo === 'editar') {
         const cambios = { role: form.role }
         if (form.password) cambios.password = form.password
@@ -129,7 +138,13 @@ export default function UsuariosView({ session }) {
 
   // Identificar qué cuentas de operadores ya están creadas
   const getExistingUserByRoleOrEmail = (roleKey, defaultUsername) => {
-    return users.find((u) => u.role === roleKey || u.email === `${defaultUsername}${DOMINIO}`)
+    return users.find(
+      (u) =>
+        u.role === roleKey ||
+        u.username === defaultUsername ||
+        u.email === defaultUsername ||
+        u.email === `${defaultUsername}@aguacol.cl`
+    )
   }
 
   const yo = session?.user?.id
@@ -140,7 +155,7 @@ export default function UsuariosView({ session }) {
         <div className="header-info">
           <h1 className="page-title">Usuarios y roles</h1>
           <p className="page-subtitle">
-            Administra usuarios del sistema y genera cuentas directas para los <strong>Operadores de Planta (Tablet)</strong>. Todas las cuentas usan {DOMINIO}.
+            Administra usuarios del sistema y genera cuentas directas con <strong>usuario y contraseña</strong> para los Operadores de Planta (Tablet).
           </p>
         </div>
         <button type="button" className="btn-primary" onClick={() => abrir('crear')}>
@@ -184,7 +199,7 @@ export default function UsuariosView({ session }) {
                     )}
                   </div>
                   <h4 className="operador-item-title">{op.label}</h4>
-                  <p className="operador-item-email"><code>{existing?.email || `${op.defaultUser}${DOMINIO}`}</code></p>
+                  <p className="operador-item-email">Usuario: <strong>{existing?.username || op.defaultUser}</strong> &nbsp;•&nbsp; Clave: <code>{op.defaultPassword}</code></p>
                   <p className="operador-item-desc">
                     Extrusoras M1, M2, M3, M4 y M5. Tareas visuales, niveles, ruidos y alarmas por turno.
                   </p>
@@ -205,7 +220,7 @@ export default function UsuariosView({ session }) {
                           abrir('crear', null, {
                             nombre: op.defaultUser,
                             role: 'operador_extrusion',
-                            password: 'Aguacol2026!'
+                            password: 'Extrusion2026'
                           })
                         }
                       >
@@ -253,7 +268,7 @@ export default function UsuariosView({ session }) {
                           abrir('crear', null, {
                             nombre: op.defaultUser,
                             role: 'operador_soplado',
-                            password: 'Aguacol2026!'
+                            password: 'Soplado2026'
                           })
                         }
                       >
@@ -301,7 +316,7 @@ export default function UsuariosView({ session }) {
                           abrir('crear', null, {
                             nombre: op.defaultUser,
                             role: 'operador_inyeccion',
-                            password: 'Aguacol2026!'
+                            password: 'Inyeccion2026'
                           })
                         }
                       >
@@ -335,7 +350,10 @@ export default function UsuariosView({ session }) {
                     return (
                       <tr key={u.id}>
                         <td>
-                          <strong>{u.email}</strong>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <strong style={{ fontSize: '0.92rem', color: '#f8fafc' }}>{u.username || u.email?.replace(/@aguacol\.cl$/i, '') || u.email}</strong>
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{u.email}</span>
+                          </div>
                           {u.id === yo && <span className="usr-yo">tú</span>}
                           {isOp && <span className="tablet-pill-badge"><Tablet size={11} /> Tablet</span>}
                         </td>
@@ -390,16 +408,16 @@ export default function UsuariosView({ session }) {
                     {modal.tipo === 'crear' && (
                       <label className="form-group">
                         <span className="form-label">Usuario</span>
-                        <span className="usr-mail">
-                          <input
-                            className="form-input"
-                            value={form.nombre}
-                            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                            placeholder="nombre.apellido o operador.area"
-                            autoFocus
-                            autoComplete="off"
-                          />
-                          <span className="usr-dom">{DOMINIO}</span>
+                        <input
+                          className="form-input"
+                          value={form.nombre}
+                          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                          placeholder="ej: opextrusion, opinyeccion, opsoplado o nombre"
+                          autoFocus
+                          autoComplete="off"
+                        />
+                        <span style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                          Puedes ingresar solo el nombre de usuario (ej: <code>opextrusion</code>) o un correo electrónico.
                         </span>
                       </label>
                     )}

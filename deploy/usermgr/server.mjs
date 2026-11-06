@@ -19,7 +19,8 @@ try {
 const ADMIN = 'mant_admin'
 const VIEWER = 'mant_authenticated'
 const b64 = (s) => Buffer.from(s, 'base64url')
-const EMAIL_OK = /^[a-z0-9][a-z0-9._-]*@aguacol\.cl$/
+const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USERNAME_OK = /^[a-z0-9][a-z0-9._-]*$/
 
 const MIME_MAP = {
   '.jpg': 'image/jpeg',
@@ -70,9 +71,9 @@ const publico = (u) => {
   let role = u.user_metadata?.role || u.app_metadata?.role
   if (!role) {
     if (u.role === ADMIN) role = 'admin'
-    else if (u.email?.includes('operador.extrusion') || u.email?.includes('operador_extrusion')) role = 'operador_extrusion'
-    else if (u.email?.includes('operador.soplado') || u.email?.includes('operador_soplado')) role = 'operador_soplado'
-    else if (u.email?.includes('operador.inyeccion') || u.email?.includes('operador_inyeccion')) role = 'operador_inyeccion'
+    else if (u.email?.includes('opextrusion') || u.email?.includes('operador.extrusion') || u.email?.includes('operador_extrusion')) role = 'operador_extrusion'
+    else if (u.email?.includes('opsoplado') || u.email?.includes('operador.soplado') || u.email?.includes('operador_soplado')) role = 'operador_soplado'
+    else if (u.email?.includes('opinyeccion') || u.email?.includes('operador.inyeccion') || u.email?.includes('operador_inyeccion')) role = 'operador_inyeccion'
     else if (u.email?.includes('operador')) role = 'operador'
     else role = 'viewer'
   }
@@ -81,12 +82,14 @@ const publico = (u) => {
     role === 'operador_soplado' ? 'Soplado' :
     role === 'operador_inyeccion' ? 'Inyección' : null
   )
+  const username = u.user_metadata?.username || u.email?.replace(/@aguacol\.cl$/i, '') || u.email
   return {
     id: u.id,
     email: u.email,
+    username,
     role,
     area,
-    user_metadata: { ...(u.user_metadata || {}), role, area },
+    user_metadata: { ...(u.user_metadata || {}), role, area, username },
     created_at: u.created_at,
     last_sign_in_at: u.last_sign_in_at
   }
@@ -106,13 +109,34 @@ async function manejarUsers(req, body, yo) {
 
   if (req.method === 'POST' && !id) {
     const rol = aRol(body.role)
-    const email = String(body.email || '').trim().toLowerCase()
-    if (!rol || !EMAIL_OK.test(email) || String(body.password || '').length < 8) return [400, { error: 'El usuario debe ser nombre@aguacol.cl, con rol y contraseña de al menos 8 caracteres.' }]
+    const rawInput = String(body.username || body.email || '').trim().toLowerCase()
+    if (!rol) return [400, { error: 'Debes seleccionar un rol válido.' }]
+    if (String(body.password || '').length < 6) return [400, { error: 'La contraseña debe tener al menos 6 caracteres.' }]
+
+    let email = ''
+    let username = ''
+
+    if (rawInput.includes('@')) {
+      if (!EMAIL_OK.test(rawInput)) return [400, { error: 'El formato de correo no es válido.' }]
+      email = rawInput
+      username = rawInput.split('@')[0]
+    } else {
+      if (!USERNAME_OK.test(rawInput)) return [400, { error: 'El usuario solo admite letras, números, punto y guion bajo.' }]
+      username = rawInput
+      email = `${username}@aguacol.cl`
+    }
+
     const area = body.area || (
       body.role === 'operador_extrusion' ? 'Extrusión' :
       body.role === 'operador_soplado' ? 'Soplado' :
       body.role === 'operador_inyeccion' ? 'Inyección' : null
     )
+    const nombre = body.nombre || (
+      username === 'opextrusion' ? 'Operador Extrusión' :
+      username === 'opinyeccion' ? 'Operador Inyección' :
+      username === 'opsoplado' ? 'Operador Soplado' : username
+    )
+
     const userPayload = {
       email,
       password: body.password,
@@ -120,7 +144,8 @@ async function manejarUsers(req, body, yo) {
       user_metadata: {
         role: body.role,
         area,
-        nombre: email.split('@')[0]
+        nombre,
+        username
       },
       app_metadata: {
         role: body.role
@@ -129,7 +154,7 @@ async function manejarUsers(req, body, yo) {
     }
     const r = await gotrue('/admin/users', { method: 'POST', body: JSON.stringify(userPayload) })
     const d = await r.json()
-    return r.ok ? [201, { user: publico(d) }] : [r.status === 422 ? 409 : 400, { error: r.status === 422 ? 'Ese correo ya existe.' : (d.msg || 'No se pudo crear.') }]
+    return r.ok ? [201, { user: publico(d) }] : [r.status === 422 ? 409 : 400, { error: r.status === 422 ? 'Ese usuario ya existe.' : (d.msg || 'No se pudo crear.') }]
   }
 
   if (!id) return [405, { error: 'Método no permitido.' }]
@@ -158,10 +183,11 @@ async function manejarUsers(req, body, yo) {
       if (String(body.password).length < 8) return [400, { error: 'La contraseña debe tener al menos 8 caracteres.' }]
       cambios.password = body.password
     }
-    if (body.email) {
-      const email = String(body.email).trim().toLowerCase()
-      if (!EMAIL_OK.test(email)) return [400, { error: 'El usuario debe ser nombre@aguacol.cl.' }]
+    if (body.email || body.username) {
+      const rawInput = String(body.username || body.email).trim().toLowerCase()
+      const email = rawInput.includes('@') ? rawInput : `${rawInput}@aguacol.cl`
       cambios.email = email
+      cambios.user_metadata = { ...(cambios.user_metadata || {}), username: rawInput.includes('@') ? rawInput.split('@')[0] : rawInput }
     }
     if (!Object.keys(cambios).length) return [400, { error: 'Nada que cambiar.' }]
     const r = await gotrue(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(cambios) })
@@ -342,3 +368,76 @@ http.createServer(async (req, res) => {
     return send(500, { error: 'Error interno del servidor.' })
   }
 }).listen(Number(PORT), '127.0.0.1', () => console.log('usermgr y evidencias escuchando en', PORT))
+
+// Creación y aseguramiento automático de los 3 usuarios operadores requeridos
+const OPERADORES_BASE = [
+  {
+    username: 'opextrusion',
+    email: 'opextrusion@aguacol.cl',
+    password: 'Extrusion2026',
+    role: 'operador_extrusion',
+    area: 'Extrusión',
+    nombre: 'Operador Extrusión'
+  },
+  {
+    username: 'opinyeccion',
+    email: 'opinyeccion@aguacol.cl',
+    password: 'Inyeccion2026',
+    role: 'operador_inyeccion',
+    area: 'Inyección',
+    nombre: 'Operador Inyección'
+  },
+  {
+    username: 'opsoplado',
+    email: 'opsoplado@aguacol.cl',
+    password: 'Soplado2026',
+    role: 'operador_soplado',
+    area: 'Soplado',
+    nombre: 'Operador Soplado'
+  }
+]
+
+let seedEjecutado = false
+async function asegurarOperadoresBase() {
+  if (seedEjecutado) return
+  seedEjecutado = true
+  try {
+    const r = await gotrue('/admin/users?per_page=200')
+    const d = await r.json()
+    const existing = d.users || []
+
+    for (const op of OPERADORES_BASE) {
+      const match = existing.find(u => u.email === op.email || u.user_metadata?.username === op.username)
+      if (!match) {
+        console.log(`[usermgr] Creando usuario automático ${op.username} (${op.email})...`)
+        await gotrue('/admin/users', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: op.email,
+            password: op.password,
+            role: VIEWER,
+            user_metadata: { role: op.role, area: op.area, nombre: op.nombre, username: op.username },
+            app_metadata: { role: op.role },
+            email_confirm: true
+          })
+        })
+      } else {
+        // Asegurar que tenga la contraseña y metadata asignadas
+        console.log(`[usermgr] Usuario ${op.username} ya existe, verificando metadata...`)
+        await gotrue(`/admin/users/${match.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            password: op.password,
+            user_metadata: { ...(match.user_metadata || {}), role: op.role, area: op.area, nombre: op.nombre, username: op.username },
+            app_metadata: { ...(match.app_metadata || {}), role: op.role }
+          })
+        })
+      }
+    }
+  } catch (err) {
+    console.warn('[usermgr] No se pudo sincronizar operadores base:', err.message)
+  }
+}
+
+// Ejecutar seed al arrancar el servidor
+setTimeout(asegurarOperadoresBase, 1500)

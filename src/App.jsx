@@ -906,12 +906,8 @@ function App() {
       setLoginError('Ingresa tu usuario y tu contraseña.')
       return
     }
-    // Solo "admin" puede entrar sin escribir el correo; el resto usa su correo completo (nombre@aguacol.cl).
+    // Permitir cualquier usuario directo o correo sin exigir @aguacol.cl
     const usuario = loginEmail.trim().toLowerCase()
-    if (!usuario.includes('@') && usuario !== 'admin') {
-      setLoginError('Escribe tu correo completo: nombre@aguacol.cl.')
-      return
-    }
     const correo = usuario.includes('@') ? usuario : `${usuario}@aguacol.cl`
 
     setLoginLoading(true)

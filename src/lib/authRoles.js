@@ -12,21 +12,24 @@ export const ROLES_OPERADOR = {
     label: 'Operador Extrusión (Tablet)',
     area: 'Extrusión',
     hint: 'Acceso en Tablet exclusivamente a tareas preventivas de Extrusión donde es responsable el operador.',
-    defaultUsername: 'operador.extrusion',
+    defaultUsername: 'opextrusion',
+    defaultPassword: 'Extrusion2026',
   },
   operador_soplado: {
     id: 'operador_soplado',
     label: 'Operador Soplado (Tablet)',
     area: 'Soplado',
     hint: 'Acceso en Tablet exclusivamente a tareas preventivas de Soplado donde es responsable el operador.',
-    defaultUsername: 'operador.soplado',
+    defaultUsername: 'opsoplado',
+    defaultPassword: 'Soplado2026',
   },
   operador_inyeccion: {
     id: 'operador_inyeccion',
     label: 'Operador Inyección (Tablet)',
     area: 'Inyección',
     hint: 'Acceso en Tablet exclusivamente a tareas preventivas de Inyección donde es responsable el operador.',
-    defaultUsername: 'operador.inyeccion',
+    defaultUsername: 'opinyeccion',
+    defaultPassword: 'Inyeccion2026',
   },
 }
 
@@ -47,15 +50,15 @@ export function getUserRole(user) {
     return metaRole
   }
 
-  // 3. Inferencia por correo electrónico oficial
-  const email = (user.email || '').toLowerCase().trim()
-  if (email.includes('operador.extrusion') || email.includes('operador_extrusion')) {
+  // 3. Inferencia por nombre de usuario o correo electrónico
+  const strId = ((user.email || '') + ' ' + (user.user_metadata?.username || '')).toLowerCase().trim()
+  if (strId.includes('opextrusion') || strId.includes('operador.extrusion') || strId.includes('operador_extrusion')) {
     return 'operador_extrusion'
   }
-  if (email.includes('operador.soplado') || email.includes('operador_soplado')) {
+  if (strId.includes('opsoplado') || strId.includes('operador.soplado') || strId.includes('operador_soplado')) {
     return 'operador_soplado'
   }
-  if (email.includes('operador.inyeccion') || email.includes('operador_inyeccion')) {
+  if (strId.includes('opinyeccion') || strId.includes('operador.inyeccion') || strId.includes('operador_inyeccion')) {
     return 'operador_inyeccion'
   }
   if (email.includes('operador')) {
@@ -82,3 +85,4 @@ export function getOperatorArea(role, user = null) {
   if (role === 'operador_inyeccion') return 'Inyección'
   return null
 }
+

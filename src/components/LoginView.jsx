@@ -142,7 +142,7 @@ export default function LoginView({ email, setEmail, password, setPassword, load
                 <button
                   type="button"
                   className="lg-shortcut-pill"
-                  onClick={() => setEmail('operador.extrusion@aguacol.cl')}
+                  onClick={() => { setEmail('opextrusion'); setPassword('Extrusion2026'); }}
                   title="Cargar usuario de Operador Extrusión"
                 >
                   Extrusión
@@ -150,7 +150,7 @@ export default function LoginView({ email, setEmail, password, setPassword, load
                 <button
                   type="button"
                   className="lg-shortcut-pill"
-                  onClick={() => setEmail('operador.soplado@aguacol.cl')}
+                  onClick={() => { setEmail('opsoplado'); setPassword('Soplado2026'); }}
                   title="Cargar usuario de Operador Soplado"
                 >
                   Soplado
@@ -158,7 +158,7 @@ export default function LoginView({ email, setEmail, password, setPassword, load
                 <button
                   type="button"
                   className="lg-shortcut-pill"
-                  onClick={() => setEmail('operador.inyeccion@aguacol.cl')}
+                  onClick={() => { setEmail('opinyeccion'); setPassword('Inyeccion2026'); }}
                   title="Cargar usuario de Operador Inyección"
                 >
                   Inyección
@@ -170,7 +170,7 @@ export default function LoginView({ email, setEmail, password, setPassword, load
               <span className="lg-label">Usuario</span>
               <span className="lg-input-wrap">
                 <Mail size={17} strokeWidth={1.9} className="lg-input-ico" />
-                <input type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" placeholder="nombre@aguacol.cl" value={email}
+                <input type="text" inputMode="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" placeholder="usuario (ej: opextrusion, opinyeccion o opsoplado)" value={email}
                   onChange={(e) => setEmail(e.target.value)} disabled={loading} autoFocus />
               </span>
             </label>
