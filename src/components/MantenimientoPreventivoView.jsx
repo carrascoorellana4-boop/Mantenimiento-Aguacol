@@ -81,6 +81,31 @@ export default function MantenimientoPreventivoView({
   const videoCamaraRef = useRef(null)
   const videoArchivoRef = useRef(null)
 
+  // Cronómetro en vivo mientras la tarea esté 'En curso'
+  const [liveNow, setLiveNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (!ejecutarModalTarea || activeEjecucion?.estado !== 'En curso') return
+    const timer = setInterval(() => {
+      setLiveNow(Date.now())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [ejecutarModalTarea, activeEjecucion?.estado])
+
+  const formatCronometroEnVivo = (fechaInicio) => {
+    if (!fechaInicio) return '00:00'
+    const startMs = new Date(fechaInicio).getTime()
+    if (isNaN(startMs)) return '00:00'
+    const diffSec = Math.max(0, Math.floor((liveNow - startMs) / 1000))
+    const hrs = Math.floor(diffSec / 3600)
+    const mins = Math.floor((diffSec % 3600) / 60)
+    const secs = diffSec % 60
+    if (hrs > 0) {
+      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    }
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }
+
   // Cargar tareas al seleccionar máquina
   useEffect(() => {
     if (!selectedMaquina) return
@@ -1071,17 +1096,21 @@ export default function MantenimientoPreventivoView({
                   </div>
 
                   <div className="mp-timer-item">
-                    <span className="mp-timer-label">Tiempo Computable en Turno</span>
-                    <span className="mp-timer-val" style={{ color: '#38bdf8' }}>
-                      {activeEjecucion?.fecha_hora_inicio
-                        ? formatHorasTurno(
-                            activeEjecucion.horas_efectivas_turno ||
-                              calcularHorasTurnoMantenimiento(
-                                activeEjecucion.fecha_hora_inicio,
-                                activeEjecucion.fecha_hora_cierre || new Date()
-                              )
-                          )
-                        : '0 min'}
+                    <span className="mp-timer-label">{activeEjecucion?.estado === 'En curso' ? 'Cronómetro en Vivo' : 'Tiempo Computable en Turno'}</span>
+                    <span className="mp-timer-val" style={{ color: activeEjecucion?.estado === 'En curso' ? '#38bdf8' : '#34d399', fontFamily: activeEjecucion?.estado === 'En curso' ? 'monospace' : 'inherit' }}>
+                      {activeEjecucion?.estado === 'En curso' ? (
+                        <>⏱️ {formatCronometroEnVivo(activeEjecucion.fecha_hora_inicio)}</>
+                      ) : activeEjecucion?.fecha_hora_inicio ? (
+                        formatHorasTurno(
+                          activeEjecucion.horas_efectivas_turno ||
+                            calcularHorasTurnoMantenimiento(
+                              activeEjecucion.fecha_hora_inicio,
+                              activeEjecucion.fecha_hora_cierre || new Date()
+                            )
+                        )
+                      ) : (
+                        '0 min'
+                      )}
                     </span>
                   </div>
 
@@ -1104,8 +1133,21 @@ export default function MantenimientoPreventivoView({
                 </div>
               </div>
 
-              {/* SECCIÓN CONDICIÓN DEL EQUIPO Y EVALUACIÓN PREVENTIVA */}
-              {activeEjecucion?.estado === 'En curso' || !activeEjecucion ? (
+              {/* ESTADO 1: TAREA NO INICIADA -> Mostrar invitación a iniciar revisión */}
+              {!activeEjecucion || (activeEjecucion?.estado !== 'En curso' && activeEjecucion?.estado !== 'Realizada') ? (
+                <div className="mp-init-notice-box">
+                  <div className="mp-init-notice-icon">
+                    <Icon n="clock" size="1.8em" />
+                  </div>
+                  <div className="mp-init-notice-content">
+                    <h4>Paso 1: Iniciar Tarea de Revisión</h4>
+                    <p>
+                      Presiona el botón verde <strong>&quot;Iniciar Tarea (Comenzar Revisión)&quot;</strong> al comenzar la inspección física. A partir de ese momento se registrará la hora de comienzo, se pondrá en marcha el cronómetro y se habilitarán las opciones de <strong>con o sin observaciones</strong> y registro de fotos/videos.
+                    </p>
+                  </div>
+                </div>
+              ) : activeEjecucion?.estado === 'En curso' ? (
+                /* ESTADO 2: TAREA EN CURSO -> AQUÍ SE HABILITAN LAS OPCIONES */
                 <>
                   <div className="mp-condicion-selector">
                     <span className="mp-condicion-title">
@@ -1342,58 +1384,25 @@ export default function MantenimientoPreventivoView({
                 Cerrar Ventana
               </button>
 
-              {/* CASO 1: NO INICIADA */}
-              {!activeEjecucion && (
-                <>
-                  <button
-                    type="button"
-                    className="mp-btn-cancel"
-                    style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
-                    onClick={handleIniciarTarea}
-                    disabled={savingEjecucion}
-                    title="Registra el inicio de la tarea para comenzar a contabilizar el turno"
-                  >
-                    <Icon n="clock" size="1em" /> Iniciar Cronómetro
-                  </button>
-
-                  {condicionEquipo === 'sin_observaciones' ? (
-                    <button
-                      type="button"
-                      className="mp-btn-confirm"
-                      style={{ background: '#10b981', borderColor: '#059669' }}
-                      onClick={() => handleCerrarTarea(false)}
-                      disabled={savingEjecucion}
-                    >
-                      {savingEjecucion ? (
-                        <>
-                          <Icon n="wait" size="1em" /> Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <Icon n="check" size="1em" /> Finalizar Tarea (Sin Observaciones)
-                        </>
-                      )}
-                    </button>
+              {/* CASO 1: NO INICIADA -> SOLO BOTÓN INICIAR TAREA */}
+              {(!activeEjecucion || (activeEjecucion?.estado !== 'En curso' && activeEjecucion?.estado !== 'Realizada')) && (
+                <button
+                  type="button"
+                  className="mp-btn-confirm mp-btn-start-large"
+                  style={{ background: '#10b981', borderColor: '#059669', padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
+                  onClick={handleIniciarTarea}
+                  disabled={savingEjecucion}
+                >
+                  {savingEjecucion ? (
+                    <>
+                      <Icon n="wait" size="1.1em" /> Iniciando tarea...
+                    </>
                   ) : (
-                    <button
-                      type="button"
-                      className="mp-btn-confirm"
-                      style={{ background: '#f59e0b', borderColor: '#d97706', color: '#0f172a', fontWeight: 700 }}
-                      onClick={() => handleCerrarTarea(true)}
-                      disabled={savingEjecucion || !observaciones.trim()}
-                    >
-                      {savingEjecucion ? (
-                        <>
-                          <Icon n="wait" size="1em" /> Creando OT...
-                        </>
-                      ) : (
-                        <>
-                          <Icon n="warn" size="1em" /> Finalizar Tarea y Generar OT Pendiente
-                        </>
-                      )}
-                    </button>
+                    <>
+                      <Icon n="clock" size="1.1em" /> Iniciar Tarea (Comenzar Revisión)
+                    </>
                   )}
-                </>
+                </button>
               )}
 
               {/* CASO 2: EN CURSO */}
