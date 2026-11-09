@@ -109,12 +109,43 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
     }
   }, [area])
 
+  // Compresión automática de imágenes vía canvas para envío ultrarrápido
+  const compressImage = (file, callback) => {
+    const img = new Image()
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      img.onload = () => {
+        const maxDim = 1200
+        let w = img.width
+        let h = img.height
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w)
+            w = maxDim
+          } else {
+            w = Math.round((w * maxDim) / h)
+            h = maxDim
+          }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        callback(dataUrl)
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleFotoChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 12 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, foto: 'La foto no debe superar los 12 MB.' }))
+    if (file.size > 15 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, foto: 'La foto no debe superar los 15 MB.' }))
       return
     }
 
@@ -122,11 +153,9 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
     const previewUrl = URL.createObjectURL(file)
     setFotoPreview(previewUrl)
 
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setFotoBase64(reader.result)
-    }
-    reader.readAsDataURL(file)
+    compressImage(file, (compressedBase64) => {
+      setFotoBase64(compressedBase64)
+    })
 
     if (errors.foto) {
       setErrors((prev) => ({ ...prev, foto: null }))
@@ -183,46 +212,25 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
     }
 
     try {
-      let result = null
-      let ok = false
+      // Llamada directa y oficial al RPC de Supabase / PostgREST
+      const { data, error } = await supabase.rpc('crear_solicitud_mantenimiento_qr', {
+        p_area: payload.area,
+        p_solicitante: payload.solicitante,
+        p_linea: payload.linea,
+        p_descripcion: payload.descripcion,
+        p_equipo: payload.equipo || null,
+        p_linea_detenida: payload.linea_detenida,
+        p_foto_url: payload.foto_base64 || null
+      })
 
-      // 1. Intentar endpoint backend público /api/solicitudes
-      try {
-        const resp = await fetch('/api/solicitudes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        if (resp.ok) {
-          result = await resp.json()
-          ok = true
-        }
-      } catch (errApi) {
-        console.warn('Endpoint /api/solicitudes no disponible, usando fallback directo RPC:', errApi.message)
+      if (error) {
+        throw new Error(error.message || 'Error al procesar la solicitud con el servidor.')
       }
 
-      // 2. Si no respondió /api/solicitudes, llamar a la función RPC de Supabase directamente
-      if (!ok) {
-        const { data, error } = await supabase.rpc('crear_solicitud_mantenimiento_qr', {
-          p_area: payload.area,
-          p_solicitante: payload.solicitante,
-          p_linea: payload.linea,
-          p_descripcion: payload.descripcion,
-          p_equipo: payload.equipo || null,
-          p_linea_detenida: payload.linea_detenida,
-          p_foto_url: null
-        })
-
-        if (error) {
-          throw new Error(error.message || 'Error al procesar solicitud con el servidor.')
-        }
-        result = data
-        ok = true
-      }
-
-      setCreatedOt(result)
+      setCreatedOt(data)
       setSubmitted(true)
     } catch (err) {
+      console.error('Error al enviar solicitud de mantenimiento:', err)
       setServerError(
         err.message || 'No fue posible registrar tu solicitud. Intenta nuevamente o avisa a tu supervisor.'
       )
@@ -313,7 +321,7 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
               <div className="summary-item">
                 <span className="summary-label">¿Línea detenida?:</span>
                 <span className={`summary-val ${lineaDetenida === 'si' ? 'text-red' : 'text-green'}`}>
-                  {lineaDetenida === 'si' ? 'Sí (Prioridad Alta)' : 'No (Operando normalmente)'}
+                  {lineaDetenida === 'si' ? 'Sí (Prioridad Alta • Línea Detenida)' : 'No (Línea produciendo)'}
                 </span>
               </div>
               {fotoPreview && (

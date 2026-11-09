@@ -6,6 +6,11 @@ ALTER TABLE public.orden_trabajo ADD COLUMN IF NOT EXISTS equipo_solicitado text
 COMMENT ON COLUMN public.orden_trabajo.foto_url IS 'URL o path de la fotografía adjunta a la solicitud o ejecución';
 COMMENT ON COLUMN public.orden_trabajo.equipo_solicitado IS 'Nombre o descripción del equipo reportado en la solicitud de mantenimiento';
 
+-- Actualizar check constraint para admitir los estados de condición de línea oficiales
+ALTER TABLE public.orden_trabajo DROP CONSTRAINT IF EXISTS orden_trabajo_condicion_linea_check;
+ALTER TABLE public.orden_trabajo ADD CONSTRAINT orden_trabajo_condicion_linea_check 
+  CHECK (condicion_linea IS NULL OR condicion_linea = ANY (ARRAY['Línea detenida'::text, 'Línea produciendo'::text, 'Detenida'::text, 'Operando'::text]));
+
 CREATE OR REPLACE FUNCTION public.crear_solicitud_mantenimiento_qr(
   p_area text,
   p_solicitante text,
@@ -67,12 +72,12 @@ BEGIN
   IF length(v_equipo) > 120 THEN v_equipo := left(v_equipo, 120); END IF;
   IF length(v_descripcion) > 3000 THEN v_descripcion := left(v_descripcion, 3000); END IF;
 
-  -- Condición de línea y prioridad
+  -- Condición de línea con valores oficiales de AGUACOL
   IF p_linea_detenida IS TRUE THEN
-    v_condicion := 'Detenida';
+    v_condicion := 'Línea detenida';
     v_prioridad := 'Alta';
   ELSE
-    v_condicion := 'Operando';
+    v_condicion := 'Línea produciendo';
     v_prioridad := 'Media';
   END IF;
 
@@ -158,7 +163,7 @@ BEGIN
     v_solicitante,
     'Solicitud generada vía ventana web desde ' || v_area || ' (' || v_linea || ')' ||
     CASE WHEN length(v_equipo) > 0 THEN ' - Equipo: ' || v_equipo ELSE '' END ||
-    ' • Línea ' || v_condicion
+    ' • ' || v_condicion
   );
 
   RETURN jsonb_build_object(
@@ -170,6 +175,7 @@ BEGIN
     'linea', v_linea,
     'equipo', v_equipo,
     'linea_detenida', p_linea_detenida,
+    'condicion_linea', v_condicion,
     'foto_url', v_foto_url
   );
 END;
