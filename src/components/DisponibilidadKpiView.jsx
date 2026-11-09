@@ -1,3 +1,17 @@
+// Formateo de números enteros (sin decimales, con separador de miles '.')
+const formatEntero = (val) => {
+  if (val === null || val === undefined || val === '' || isNaN(Number(val))) return '0';
+  const rounded = Math.round(Number(val));
+  return rounded.toLocaleString('es-CL');
+};
+
+// Formateo de porcentajes con exactamente 1 decimal después de la coma (ej: 99,3%)
+const formatPorcentaje = (val) => {
+  if (val === null || val === undefined || val === '' || isNaN(Number(val))) return '0,0%';
+  const num = Number(val);
+  return `${num.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+};
+
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Icon from './Icon'
 import SelectorPeriodoVisual from './SelectorPeriodoVisual'
@@ -305,7 +319,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           </div>
           <p className={`disp-kpi-value ${getPctClass(kpis.disponibilidadGlobal)}`}>
-            {kpis.disponibilidadGlobal.toFixed(2)}%
+            {formatPorcentaje(kpis.disponibilidadGlobal)}
           </p>
           <p className="disp-kpi-desc">
             Meta operacional: <strong>≥ 90.0%</strong>
@@ -321,10 +335,10 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           </div>
           <p className="disp-kpi-value" style={{ color: '#34d399' }}>
-            {kpis.totalHorasDisponibles.toLocaleString('es-CL')} h
+            {formatEntero(kpis.totalHorasDisponibles)} h
           </p>
           <p className="disp-kpi-desc">
-            {kpis.totalTurnosProd} turnos de producción programados
+            {formatEntero(kpis.totalTurnosProd)} turnos de producción programados
           </p>
         </div>
 
@@ -337,10 +351,10 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           </div>
           <p className="disp-kpi-value" style={{ color: kpis.totalHorasMantencion > 0 ? '#f87171' : '#f1f5f9' }}>
-            {kpis.totalHorasMantencion.toLocaleString('es-CL')} h
+            {formatEntero(kpis.totalHorasMantencion)} h
           </p>
           <p className="disp-kpi-desc">
-            {kpis.totalTurnosMant} turnos indisp. • {kpis.totalHorasEfectivasMant} h efectivas
+            {formatEntero(kpis.totalTurnosMant)} turnos indisp. • {formatEntero(kpis.totalHorasEfectivasMant)} h efectivas
           </p>
         </div>
 
@@ -353,7 +367,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
             </div>
           </div>
           <p className="disp-kpi-value" style={{ color: '#38bdf8' }}>
-            {kpis.totalCambiosMolde} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>({kpis.totalHorasCambioMolde} h)</span>
+            {formatEntero(kpis.totalCambiosMolde)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>({formatEntero(kpis.totalHorasCambioMolde)} h)</span>
           </p>
           <p className="disp-kpi-desc">Registro operativo aparte (no resta disp.)</p>
         </div>
@@ -488,24 +502,24 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                               </div>
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: 600 }}>
-                              {eq.turnos_produccion || 0}
+                              {formatEntero(eq.turnos_produccion)}
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                              {eq.horas_disponibles.toLocaleString('es-CL')} h
+                              {formatEntero(eq.horas_disponibles)} h
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: 600, color: eq.turnos_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                              {eq.turnos_mantencion || 0}
+                              {formatEntero(eq.turnos_mantencion)}
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 600, color: eq.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                              {eq.horas_mantencion.toLocaleString('es-CL')} h
+                              {formatEntero(eq.horas_mantencion)} h
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 500, color: '#cbd5e1' }}>
-                              {(eq.horas_efectivas_mantenimiento || 0).toLocaleString('es-CL')} h
+                              {formatEntero(eq.horas_efectivas_mantenimiento)} h
                             </td>
                             <td style={{ textAlign: 'center', fontSize: '0.85rem' }}>
                               {eq.cambios_molde > 0 ? (
                                 <span style={{ color: '#38bdf8', fontWeight: 600 }}>
-                                  {eq.cambios_molde} ({eq.horas_cambio_molde || 0} h)
+                                  {formatEntero(eq.cambios_molde)} ({formatEntero(eq.horas_cambio_molde)} h)
                                 </span>
                               ) : (
                                 <span style={{ color: '#64748b' }}>0</span>
@@ -517,7 +531,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                                   style={{ fontWeight: 700, minWidth: '55px', textAlign: 'right' }}
                                   className={`disp-kpi-value ${pctClass}`}
                                 >
-                                  {eq.disponibilidad_pct.toFixed(2)}%
+                                  {formatPorcentaje(eq.disponibilidad_pct)}
                                 </span>
                                 <div className="disp-progress-bar">
                                   <div
@@ -549,28 +563,28 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <strong>TOTAL / PROMEDIO</strong>
                           <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Consolidado {kpis.porEquipo.length} máquinas (validado hasta 01-nov)</div>
                         </td>
-                        <td style={{ textAlign: 'center' }}>{kpis.totalTurnosProd}</td>
+                        <td style={{ textAlign: 'center' }}>{formatEntero(kpis.totalTurnosProd)}</td>
                         <td style={{ textAlign: 'right', color: '#34d399' }}>
-                          {kpis.totalHorasDisponibles.toLocaleString('es-CL')} h
+                          {formatEntero(kpis.totalHorasDisponibles)} h
                         </td>
                         <td style={{ textAlign: 'center', color: kpis.totalTurnosMant > 0 ? '#f87171' : 'inherit' }}>
-                          {kpis.totalTurnosMant}
+                          {formatEntero(kpis.totalTurnosMant)}
                         </td>
                         <td style={{ textAlign: 'right', color: kpis.totalHorasMantencion > 0 ? '#f87171' : 'inherit' }}>
-                          {kpis.totalHorasMantencion.toLocaleString('es-CL')} h
+                          {formatEntero(kpis.totalHorasMantencion)} h
                         </td>
                         <td style={{ textAlign: 'right', color: '#e2e8f0' }}>
-                          {kpis.totalHorasEfectivasMant.toLocaleString('es-CL')} h
+                          {formatEntero(kpis.totalHorasEfectivasMant)} h
                         </td>
                         <td style={{ textAlign: 'center', color: '#38bdf8' }}>
-                          {kpis.totalCambiosMolde} ({kpis.totalHorasCambioMolde} h)
+                          {formatEntero(kpis.totalCambiosMolde)} ({formatEntero(kpis.totalHorasCambioMolde)} h)
                         </td>
                         <td>
                           <span
                             className={`disp-kpi-value ${getPctClass(kpis.disponibilidadGlobal)}`}
                             style={{ fontSize: '1.1rem', fontWeight: 800 }}
                           >
-                            {kpis.disponibilidadGlobal.toFixed(2)}%
+                            {formatPorcentaje(kpis.disponibilidadGlobal)}
                           </span>
                         </td>
                         <td>
@@ -621,23 +635,23 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <td style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
                             {p.fecha_desde} al {p.fecha_hasta}
                           </td>
-                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{p.turnos_produccion}</td>
+                          <td style={{ textAlign: 'center', fontWeight: 600 }}>{formatEntero(p.turnos_produccion)}</td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                            {p.horas_disponibles.toLocaleString('es-CL')} h
+                            {formatEntero(p.horas_disponibles)} h
                           </td>
                           <td style={{ textAlign: 'center', fontWeight: 600, color: p.turnos_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                            {p.turnos_mantencion}
+                            {formatEntero(p.turnos_mantencion)}
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: p.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                            {p.horas_mantencion.toLocaleString('es-CL')} h
+                            {formatEntero(p.horas_mantencion)} h
                           </td>
                           <td style={{ textAlign: 'right', color: '#cbd5e1' }}>
-                            {p.horas_efectivas_mantenimiento} h
+                            {formatEntero(p.horas_efectivas_mantenimiento)} h
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             {p.cambios_molde > 0 ? (
                               <span style={{ color: '#38bdf8', fontWeight: 600 }}>
-                                {p.cambios_molde} ({p.horas_cambio_molde} h)
+                                {formatEntero(p.cambios_molde)} ({formatEntero(p.horas_cambio_molde)} h)
                               </span>
                             ) : (
                               <span style={{ color: '#64748b' }}>0</span>
@@ -646,7 +660,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <td>
                             <div className="disp-progress-wrap">
                               <span style={{ fontWeight: 700, minWidth: '55px', textAlign: 'right' }} className={`disp-kpi-value ${pctClass}`}>
-                                {p.disponibilidad_pct.toFixed(2)}%
+                                {formatPorcentaje(p.disponibilidad_pct)}
                               </span>
                               <div className="disp-progress-bar">
                                 <div
@@ -716,17 +730,17 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                             <span className="mp-badge-tag">{r.turno || '8h'}</span>
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: '#34d399' }}>
-                            {hDisp.toFixed(1)} h
+                            {formatEntero(hDisp)} h
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: hMant > 0 ? '#f87171' : 'inherit' }}>
-                            {hMant.toFixed(1)} h
+                            {formatEntero(hMant)} h
                           </td>
                           <td style={{ textAlign: 'center', fontSize: '0.8rem' }}>
-                            {r.cambios_molde > 0 ? `${r.cambios_molde} (${r.horas_cambio_molde || 0} h)` : '—'}
+                            {r.cambios_molde > 0 ? `${formatEntero(r.cambios_molde)} (${formatEntero(r.horas_cambio_molde)} h)` : '—'}
                           </td>
                           <td>
                             <span style={{ fontWeight: 700 }} className={`disp-kpi-value ${pctClass}`}>
-                              {Number(r.disponibilidad_pct || 0).toFixed(1)}%
+                              {formatPorcentaje(r.disponibilidad_pct)}
                             </span>
                           </td>
                           <td>{r.motivo || r.tipo_detencion || '—'}</td>
@@ -951,13 +965,13 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
                           <tr key={idx}>
                             <td>{f.fecha}</td>
                             <td>{f.nombre_equipo}</td>
-                            <td style={{ textAlign: 'right', color: '#34d399' }}>{f.horas_disponibles} h</td>
+                            <td style={{ textAlign: 'right', color: '#34d399' }}>{formatEntero(f.horas_disponibles)} h</td>
                             <td style={{ textAlign: 'right', color: f.horas_mantencion > 0 ? '#f87171' : 'inherit' }}>
-                              {f.horas_mantencion} h
+                              {formatEntero(f.horas_mantencion)} h
                             </td>
                             <td>
                               <span style={{ fontWeight: 700 }} className={`disp-kpi-value ${getPctClass(f.disponibilidad_pct)}`}>
-                                {f.disponibilidad_pct}%
+                                {formatPorcentaje(f.disponibilidad_pct)}
                               </span>
                             </td>
                             <td>{f.motivo || '—'}</td>
