@@ -199,3 +199,4 @@ GRANT EXECUTE ON FUNCTION public.resolver_importaciones_masivas(uuid[], uuid, uu
 
 -- 7. Notificar a PostgREST para recargar el esquema de inmediato
 NOTIFY pgrst, 'reload schema';
+
