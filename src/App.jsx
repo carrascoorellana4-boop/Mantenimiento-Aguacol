@@ -4279,6 +4279,7 @@ function App() {
               }}
               onNavigateToBitacora={handleDashboardNavigateToBitacora}
               onNavigateToActivo={handleDashboardNavigateToActivo}
+              onNavigateToDisponibilidad={() => setActiveView('disponibilidad')}
             />
           </section>
         )}

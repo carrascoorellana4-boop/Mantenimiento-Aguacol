@@ -1,8 +1,51 @@
 import Icon from './Icon'
 import SelectorPeriodoVisual from './SelectorPeriodoVisual'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { parseTecnicos } from '../lib/tecnicos'
 import { calculateOtDashboardMetrics } from '../services/ordenesTrabajoService'
+import { fetchRegistrosDisponibilidad, consolidarKpisDisponibilidad } from '../services/disponibilidadService'
+
+// Formateo de números enteros (sin decimales, con separador de miles '.')
+const formatEntero = (val) => {
+  if (val === null || val === undefined || val === '' || isNaN(Number(val))) return '0'
+  const rounded = Math.round(Number(val))
+  return rounded.toLocaleString('es-CL')
+}
+
+// Formateo de porcentajes con exactamente 1 decimal después de la coma (ej: 98,4%)
+const formatPorcentaje = (val) => {
+  if (val === null || val === undefined || val === '' || isNaN(Number(val))) return '0,0%'
+  const num = Number(val)
+  return num.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'
+}
+
+const getDispBadgeInfo = (pct) => {
+  if (pct >= 90) {
+    return {
+      text: '#34d399',
+      status: 'Meta operacional cumplida (≥ 90%)',
+      badgeBg: 'rgba(16, 185, 129, 0.15)',
+      badgeBorder: 'rgba(16, 185, 129, 0.35)',
+      badgeText: '#34d399'
+    }
+  }
+  if (pct >= 80) {
+    return {
+      text: '#fbbf24',
+      status: 'Alerta operacional (< 90%)',
+      badgeBg: 'rgba(245, 158, 11, 0.15)',
+      badgeBorder: 'rgba(245, 158, 11, 0.35)',
+      badgeText: '#fbbf24'
+    }
+  }
+  return {
+    text: '#f87171',
+    status: 'Nivel crítico (< 80%)',
+    badgeBg: 'rgba(239, 68, 68, 0.15)',
+    badgeBorder: 'rgba(239, 68, 68, 0.35)',
+    badgeText: '#f87171'
+  }
+}
 
 const TIPOS_INTERVENCION = [
   'Correctiva',
@@ -47,8 +90,10 @@ export default function DashboardMantenimiento({
   onNavigateToBitacora = () => {},
   onNavigateToActivo = () => {},
   onNavigateToOrdenesTrabajo = () => {},
+  onNavigateToDisponibilidad = () => {},
   onRefreshData = () => {},
-  loading = false
+  loading = false,
+  registrosDisponibilidad: registrosDisponibilidadProp = null
 }) {
   // Estado de Selector Visual de Período (AÑO, MES, DÍAS interactivo)
   const [periodoVisual, setPeriodoVisual] = useState({
@@ -63,6 +108,76 @@ export default function DashboardMantenimiento({
   const [filterTipoIntervencion, setFilterTipoIntervencion] = useState('')
   const [filterTipoFalla, setFilterTipoFalla] = useState('')
   const [lastUpdate] = useState(() => new Date())
+
+  // Estado y carga reactiva de disponibilidad operacional (KPI)
+  const [registrosDisp, setRegistrosDisp] = useState(
+    Array.isArray(registrosDisponibilidadProp) ? registrosDisponibilidadProp : []
+  )
+  const [_loadingDisp, setLoadingDisp] = useState(false)
+
+  const loadDisponibilidad = async () => {
+    try {
+      setLoadingDisp(true)
+      const res = await fetchRegistrosDisponibilidad()
+      if (res?.registros) {
+        setRegistrosDisp(res.registros)
+      }
+    } catch (err) {
+      console.warn('Error cargando disponibilidad en Dashboard:', err)
+    } finally {
+      setLoadingDisp(false)
+    }
+  }
+
+  useEffect(() => {
+    if (Array.isArray(registrosDisponibilidadProp) && registrosDisponibilidadProp.length > 0) {
+      setRegistrosDisp(registrosDisponibilidadProp)
+      return
+    }
+    loadDisponibilidad()
+  }, [registrosDisponibilidadProp])
+
+  // Filtrado de registros de disponibilidad según período visual y equipo/área
+  const registrosDispFiltrados = useMemo(() => {
+    let list = [...registrosDisp]
+
+    // Filtro por fecha según período visual
+    if (!periodoVisual.isAll) {
+      if (periodoVisual.fechaDesde) {
+        list = list.filter((r) => (r.fecha || '') >= periodoVisual.fechaDesde)
+      }
+      if (periodoVisual.fechaHasta) {
+        list = list.filter((r) => (r.fecha || '') <= periodoVisual.fechaHasta)
+      }
+    }
+
+    // Filtro por Equipo
+    if (filterEquipoId) {
+      const eqObj = equiposList.find((e) => String(e.id) === String(filterEquipoId))
+      const eqCod = eqObj?.codigo?.trim().toLowerCase()
+      const eqNom = eqObj?.nombre?.trim().toLowerCase()
+      list = list.filter((r) => {
+        if (r.equipo_id && String(r.equipo_id) === String(filterEquipoId)) return true
+        const rCod = (r.codigo_equipo || '').trim().toLowerCase()
+        const rNom = (r.nombre_equipo || '').trim().toLowerCase()
+        if (eqCod && rCod && (rCod === eqCod || rCod.includes(eqCod) || eqCod.includes(rCod))) return true
+        if (eqNom && rNom && (rNom === eqNom || rNom.includes(eqNom) || eqNom.includes(rNom))) return true
+        return false
+      })
+    } else if (filterArea) {
+      // Filtro por Área si no hay equipo específico
+      const areaLower = filterArea.trim().toLowerCase()
+      list = list.filter((r) => (r.area || '').trim().toLowerCase() === areaLower)
+    }
+
+    return list
+  }, [registrosDisp, periodoVisual, filterEquipoId, filterArea, equiposList])
+
+  const kpisDisp = useMemo(() => {
+    return consolidarKpisDisponibilidad(registrosDispFiltrados)
+  }, [registrosDispFiltrados])
+
+
 
   // Catálogo de áreas dinámicas
   const availableAreas = useMemo(() => {
@@ -716,7 +831,10 @@ export default function DashboardMantenimiento({
             <button
               type="button"
               className="fracttal-refresh-btn"
-              onClick={onRefreshData}
+              onClick={() => {
+                loadDisponibilidad()
+                onRefreshData()
+              }}
               title="Recargar datos de Supabase"
             >
               <Icon n="refresh" />
@@ -854,7 +972,129 @@ export default function DashboardMantenimiento({
         </div>
       )}
 
-      {/* 3. SEIS TARJETAS KPI SUPERIORES */}
+      {/* 2b. SECCIÓN DE INDICADORES KPI DE DISPONIBILIDAD (SECTOR ALTO) */}
+      <div className="fracttal-card fracttal-kpi-disp-section">
+        <div className="fracttal-kpi-disp-header">
+          <div className="fracttal-kpi-disp-title-wrap">
+            <div className="fracttal-kpi-disp-icon">
+              <Icon n="chart" />
+            </div>
+            <div>
+              <div className="fracttal-kpi-disp-title">
+                <span>Indicadores KPI de Disponibilidad Operacional</span>
+                <span className="fracttal-kpi-disp-badge">Meta: ≥ 90,0%</span>
+              </div>
+              <p className="fracttal-kpi-disp-formula">
+                Fórmula oficial: <code>(Horas Disponibles / (Horas Disponibles + Horas Mantención)) × 100</code>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="fracttal-kpi-disp-btn"
+            onClick={onNavigateToDisponibilidad}
+            title="Abrir módulo completo de Disponibilidad KPI"
+          >
+            <span>Ver Módulo Disponibilidad KPI</span>
+            <Icon n="right" />
+          </button>
+        </div>
+
+        <div className="fracttal-kpi-disp-grid">
+          {/* KPI 1: Disponibilidad Global */}
+          <div
+            className="fracttal-kpi-card fracttal-kpi-clickable"
+            onClick={onNavigateToDisponibilidad}
+            title="Clic para ver detalle en Módulo Disponibilidad"
+          >
+            <div className="fracttal-kpi-top">
+              <span className="fracttal-kpi-title">Disponibilidad Global</span>
+              <span className="fracttal-kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.16)', color: '#34d399' }}>
+                <Icon n="check" />
+              </span>
+            </div>
+            <div className="fracttal-kpi-value" style={{ color: getDispBadgeInfo(kpisDisp.disponibilidadGlobal).text }}>
+              {formatPorcentaje(kpisDisp.disponibilidadGlobal)}
+            </div>
+            <div className="fracttal-kpi-subtitle">
+              {getDispBadgeInfo(kpisDisp.disponibilidadGlobal).status}
+            </div>
+          </div>
+
+          {/* KPI 2: Horas de Funcionamiento */}
+          <div
+            className="fracttal-kpi-card fracttal-kpi-clickable"
+            onClick={onNavigateToDisponibilidad}
+            title="Horas totales en que las máquinas estuvieron operativas"
+          >
+            <div className="fracttal-kpi-top">
+              <span className="fracttal-kpi-title">Horas Funcionamiento</span>
+              <span className="fracttal-kpi-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.16)', color: '#60a5fa' }}>
+                <Icon n="zap" />
+              </span>
+            </div>
+            <div className="fracttal-kpi-value" style={{ color: '#34d399' }}>
+              {formatEntero(kpisDisp.totalHorasDisponibles)} h
+            </div>
+            <div className="fracttal-kpi-subtitle">
+              {formatEntero(kpisDisp.totalTurnosProd)} turnos de producción programados
+            </div>
+          </div>
+
+          {/* KPI 3: Horas Indisponibilidad Mantención */}
+          <div
+            className="fracttal-kpi-card fracttal-kpi-clickable"
+            onClick={onNavigateToDisponibilidad}
+            title="Horas perdidas por mantención o fallas operacionales"
+          >
+            <div className="fracttal-kpi-top">
+              <span className="fracttal-kpi-title">Indisponibilidad Mantención</span>
+              <span className="fracttal-kpi-icon-wrapper" style={{ background: 'rgba(239, 68, 68, 0.16)', color: '#f87171' }}>
+                <Icon n="warn" />
+              </span>
+            </div>
+            <div className="fracttal-kpi-value" style={{ color: kpisDisp.totalHorasMantencion > 0 ? '#f87171' : '#f1f5f9' }}>
+              {formatEntero(kpisDisp.totalHorasMantencion)} h
+            </div>
+            <div className="fracttal-kpi-subtitle">
+              {formatEntero(kpisDisp.totalTurnosMant)} turnos indisp. • {formatEntero(kpisDisp.totalHorasEfectivasMant)} h efectivas
+            </div>
+          </div>
+
+          {/* KPI 4: Cambios de Molde */}
+          <div
+            className="fracttal-kpi-card fracttal-kpi-clickable"
+            onClick={onNavigateToDisponibilidad}
+            title="Cambios de molde realizados en el período"
+          >
+            <div className="fracttal-kpi-top">
+              <span className="fracttal-kpi-title">Cambios de Molde</span>
+              <span className="fracttal-kpi-icon-wrapper" style={{ background: 'rgba(56, 189, 248, 0.16)', color: '#38bdf8' }}>
+                <Icon n="tools" />
+              </span>
+            </div>
+            <div className="fracttal-kpi-value" style={{ color: '#38bdf8' }}>
+              {formatEntero(kpisDisp.totalCambiosMolde)}{' '}
+              <span style={{ fontSize: '1.05rem', color: '#94a3b8', fontWeight: 600 }}>
+                ({formatEntero(kpisDisp.totalHorasCambioMolde)} h)
+              </span>
+            </div>
+            <div className="fracttal-kpi-subtitle">
+              Registro operativo aparte (no descuenta disp.)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* TÍTULO DE SECCIÓN: MÉTRICAS DE BITÁCORA */}
+      <div className="fracttal-section-title-bar">
+        <div className="fracttal-section-title-left">
+          <span className="fracttal-section-title-icon"><Icon n="list" /></span>
+          <span className="fracttal-section-title-text">Métricas de Actividad e Intervenciones de Bitácora</span>
+        </div>
+      </div>
+
+      {/* 3. SEIS TARJETAS KPI DE ACTIVIDAD */}
       <div className="fracttal-kpi-grid">
         {/* KPI 1: Intervenciones */}
         <div
