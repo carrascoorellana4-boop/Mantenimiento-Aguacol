@@ -1273,6 +1273,18 @@ export const JERARQUIA_APROBADA = [
         ubicacion: 'AGUACOL → Servicios Generales (Referencia física: Producción / JJV → Cocina)',
         descripcion: 'Tablero eléctrico de distribución y control de Cocina con referencia física en Producción / JJV → Cocina',
         hijos: []
+      },
+      {
+        id: '6738334b-06b0-4574-8530-30595e56c86c',
+        codigo: 'AGL-SSGG-ELEC-PROD-01',
+        nombre: 'Sistema eléctrico galpón producción',
+        area: 'Servicios Generales',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'AGUACOL → Servicios Generales (Referencia física: Galpón Producción)',
+        descripcion: 'Sistema integral de distribución eléctrica, enchufes e instalaciones eléctricas del Galpón de Producción',
+        hijos: []
       }
     ]
   },
