@@ -238,13 +238,13 @@ http.createServer(async (req, res) => {
     }
 
     // -------------------------------------------------------------
-    // 2. ENDPOINT PÚBLICO: SOLICITUD DE MANTENIMIENTO VÍA CÓDIGO QR
+    // 2. ENDPOINT PÚBLICO: SOLICITUD DE MANTENIMIENTO VÍA CÓDIGO QR / WEB
     // -------------------------------------------------------------
     if (urlPath === '/api/solicitudes' && req.method === 'POST') {
       let raw = ''
       for await (const c of req) {
         raw += c
-        if (raw.length > 10000) return send(413, { error: 'Cuerpo de solicitud demasiado grande.' })
+        if (raw.length > 20 * 1024 * 1024) return send(413, { error: 'Cuerpo de solicitud demasiado grande.' })
       }
       let body = {}
       try {
@@ -256,16 +256,38 @@ http.createServer(async (req, res) => {
       const area = String(body.area || '').trim()
       const solicitante = String(body.solicitante || '').trim()
       const linea = String(body.linea || '').trim()
+      const equipo = String(body.equipo || '').trim()
       const descripcion = String(body.descripcion || '').trim()
+      const lineaDetenida = Boolean(body.linea_detenida)
+      const fotoBase64 = String(body.foto_base64 || '').trim()
 
       if (!area) return send(400, { error: 'El área del solicitante es obligatoria.' })
-      if (!solicitante || solicitante.length < 2) return send(400, { error: 'El nombre del trabajador debe tener al menos 2 caracteres.' })
+      if (!solicitante || solicitante.length < 2) return send(400, { error: 'El nombre del solicitante debe tener al menos 2 caracteres.' })
       if (!linea) return send(400, { error: 'La línea o sector es obligatorio.' })
       if (!descripcion || descripcion.length < 3) return send(400, { error: 'La descripción del problema o trabajo requerido debe tener al menos 3 caracteres.' })
+
+      // Procesar foto opcional si viene en base64
+      let fotoUrl = null
+      if (fotoBase64) {
+        try {
+          const match = fotoBase64.match(/^data:([^;]+);base64,(.+)$/)
+          const b64Data = match ? match[2] : fotoBase64
+          const mime = match ? match[1] : 'image/jpeg'
+          const ext = EXT_FROM_MIME[mime] || 'jpg'
+          const safeId = crypto.randomUUID ? crypto.randomUUID() : Date.now()
+          const filename = `solicitud-${safeId}.${ext}`
+          const finalPath = path.join(targetEvidenciasDir, filename)
+          fs.writeFileSync(finalPath, Buffer.from(b64Data, 'base64'))
+          fotoUrl = `/api/evidencias/${filename}`
+        } catch (imgErr) {
+          console.warn('Error guardando fotografía de solicitud:', imgErr.message)
+        }
+      }
 
       // Sanitización contra inyección de HTML o scripts
       const cleanSolicitante = solicitante.replace(/<[^>]*>/g, '').slice(0, 120)
       const cleanLinea = linea.replace(/<[^>]*>/g, '').slice(0, 120)
+      const cleanEquipo = equipo.replace(/<[^>]*>/g, '').slice(0, 120)
       const cleanDesc = descripcion.replace(/<[^>]*>/g, '').slice(0, 3000)
 
       const pgrstUrl = process.env.PGRST_URL || 'http://127.0.0.1:3100'
@@ -279,7 +301,10 @@ http.createServer(async (req, res) => {
           p_area: area,
           p_solicitante: cleanSolicitante,
           p_linea: cleanLinea,
-          p_descripcion: cleanDesc
+          p_descripcion: cleanDesc,
+          p_equipo: cleanEquipo || null,
+          p_linea_detenida: lineaDetenida,
+          p_foto_url: fotoUrl
         })
       })
 

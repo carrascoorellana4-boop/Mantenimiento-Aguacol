@@ -1,426 +1,614 @@
-.qr-solicitud-wrapper {
+/* ==========================================================================
+   SOLICITUD DE MANTENIMIENTO — VENTANA PÚBLICA / QR AGUACOL
+   ========================================================================== */
+
+.solicitud-page-wrapper {
   min-height: 100vh;
   min-height: 100dvh;
-  background: linear-gradient(145deg, #091e3a 0%, #0f172a 100%);
+  width: 100%;
+  background: radial-gradient(circle at 50% 10%, #0c2340 0%, #030d1a 80%, #01060e 100%);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 1rem 1rem 2.5rem 1rem;
+  justify-content: center;
+  padding: 1.5rem 1rem 3rem 1rem;
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: #f1f5f9;
 }
 
-.qr-header-branding {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin-top: 0.5rem;
-  margin-bottom: 1.5rem;
+/* Tarjeta / Ventana Principal */
+.solicitud-card-window {
   width: 100%;
-  max-width: 480px;
-}
-
-.qr-brand-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.35rem 0.85rem;
-  border-radius: 9999px;
-  margin-bottom: 0.6rem;
-}
-
-.qr-header-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-}
-
-.qr-header-subtitle {
-  font-size: 0.88rem;
-  color: #94a3b8;
-  margin-top: 0.35rem;
-  margin-bottom: 0;
-}
-
-/* Tarjeta principal */
-.qr-card-container {
-  width: 100%;
-  max-width: 480px;
-  background: #ffffff;
-  color: #0f172a;
-  border-radius: 1.25rem;
-  box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.35), 0 10px 15px -5px rgba(0, 0, 0, 0.2);
-  padding: 1.5rem 1.25rem;
+  max-width: 540px;
+  background: rgba(13, 27, 46, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 2rem 1.75rem;
   box-sizing: border-box;
-  animation: fadeInQr 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: solFadeUp 0.35s ease-out;
 }
 
-@keyframes fadeInQr {
+@keyframes solFadeUp {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-/* Paso 1: Selección de Área */
-.qr-step-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #0f172a;
+/* Cabecera */
+.solicitud-window-header {
   text-align: center;
-  margin: 0 0 0.35rem 0;
+  margin-bottom: 1.75rem;
+  position: relative;
 }
 
-.qr-step-instruction {
-  font-size: 0.85rem;
-  color: #64748b;
-  text-align: center;
-  margin: 0 0 1.25rem 0;
-}
-
-.qr-areas-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.qr-area-btn {
-  display: flex;
+.solicitud-back-link {
+  display: inline-flex;
   align-items: center;
-  gap: 1rem;
-  width: 100%;
-  padding: 1.1rem 1.2rem;
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 1rem;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.18s ease;
-  min-height: 72px;
-}
-
-.qr-area-btn:hover {
-  background: #f0f9ff;
-  border-color: #0284c7;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.15);
-}
-
-.qr-area-btn:active {
-  transform: scale(0.98);
-}
-
-.qr-area-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 0.75rem;
-  background: #e0f2fe;
-  color: #0284c7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.35rem;
-  flex-shrink: 0;
-}
-
-.qr-area-btn-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.qr-area-btn-title {
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.qr-area-btn-desc {
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
   font-size: 0.8rem;
-  color: #64748b;
-  margin-top: 0.15rem;
-}
-
-/* Paso 2: Formulario */
-.qr-form-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.qr-back-btn {
-  background: none;
-  border: none;
-  color: #0284c7;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
-  padding: 0.4rem 0.2rem;
-}
-
-.qr-selected-area-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: #e0f2fe;
-  color: #0369a1;
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 0.3rem 0.65rem;
-  border-radius: 9999px;
-  border: 1px solid #bae6fd;
-}
-
-.qr-form-group {
-  margin-bottom: 1.1rem;
-}
-
-.qr-form-label {
-  display: block;
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.35rem;
-}
-
-.qr-form-label .req {
-  color: #ef4444;
-  margin-left: 0.2rem;
-}
-
-.qr-input,
-.qr-select,
-.qr-textarea {
-  width: 100%;
-  padding: 0.75rem 0.9rem;
-  font-size: 0.95rem;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 0.75rem;
-  box-sizing: border-box;
-  font-family: inherit;
-  transition: all 0.15s ease;
-}
-
-.qr-input:focus,
-.qr-select:focus,
-.qr-textarea:focus {
-  outline: none;
-  border-color: #0284c7;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
-}
-
-.qr-input.is-invalid,
-.qr-select.is-invalid,
-.qr-textarea.is-invalid {
-  border-color: #ef4444;
-  background: #fff5f5;
-}
-
-.qr-field-error {
-  display: block;
-  color: #ef4444;
-  font-size: 0.78rem;
   font-weight: 500;
-  margin-top: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
 }
 
-.qr-textarea {
-  resize: vertical;
-  min-height: 95px;
+.solicitud-back-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+}
+
+.solicitud-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.3rem 0.85rem;
+  border-radius: 9999px;
+  margin-bottom: 0.65rem;
+}
+
+.solicitud-brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
+.solicitud-main-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.solicitud-subtitle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0.4rem 0 0 0;
   line-height: 1.4;
 }
 
-.qr-helper-text {
-  font-size: 0.76rem;
-  color: #64748b;
-  margin-top: 0.25rem;
-  display: block;
-}
-
-.qr-submit-btn {
+/* Formulario y Grupos */
+.solicitud-form {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.95rem 1.2rem;
-  background: #0284c7;
-  color: #ffffff;
-  border: none;
-  border-radius: 0.75rem;
-  font-size: 1.02rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  min-height: 52px;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
-  margin-top: 1.25rem;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-.qr-submit-btn:hover:not(:disabled) {
-  background: #0369a1;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.45);
-}
-
-.qr-submit-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.qr-submit-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.qr-server-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-  padding: 0.75rem 0.9rem;
-  border-radius: 0.65rem;
-  font-size: 0.83rem;
-  margin-bottom: 1rem;
+.solicitud-field-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.4rem;
 }
 
-/* Pantalla de Éxito */
-.qr-success-card {
-  text-align: center;
-  padding: 1.5rem 0.5rem;
+.solicitud-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
-.qr-success-icon-wrap {
-  width: 72px;
-  height: 72px;
+.solicitud-label .req {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.solicitud-label .optional-tag {
+  color: #64748b;
+  font-size: 0.775rem;
+  font-weight: 400;
+}
+
+/* Inputs y Selects */
+.solicitud-input,
+.solicitud-select,
+.solicitud-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.solicitud-input:focus,
+.solicitud-select:focus,
+.solicitud-textarea:focus {
+  border-color: #38bdf8;
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.solicitud-input.is-invalid,
+.solicitud-select.is-invalid,
+.solicitud-textarea.is-invalid {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.solicitud-select-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.solicitud-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 1.1rem;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.solicitud-select option {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 0.5rem;
+}
+
+.solicitud-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.45;
+}
+
+/* Errores */
+.solicitud-error-text {
+  font-size: 0.775rem;
+  color: #fca5a5;
+  font-weight: 500;
+  margin-top: 0.15rem;
+}
+
+.solicitud-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.solicitud-alert-box.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+/* Radios para ¿La línea está detenida? */
+.solicitud-radios-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.solicitud-radio-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.solicitud-radio-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radio-indicator {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: #dcfce7;
-  color: #16a34a;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
-  margin: 0 auto 1.2rem auto;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
-.qr-success-title {
+.radio-indicator::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.solicitud-radio-card:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.solicitud-radio-card.selected-danger {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.solicitud-radio-card.selected-danger .radio-indicator {
+  border-color: #ef4444;
+}
+
+.solicitud-radio-card.selected-danger .radio-indicator::after {
+  background: #ef4444;
+}
+
+.solicitud-radio-card.selected-normal {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.solicitud-radio-card.selected-normal .radio-indicator {
+  border-color: #10b981;
+}
+
+.solicitud-radio-card.selected-normal .radio-indicator::after {
+  background: #10b981;
+}
+
+.radio-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.radio-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.radio-desc {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 0.1rem;
+}
+
+/* Botón y Preview de Foto */
+.solicitud-btn-foto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px dashed rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.solicitud-btn-foto:hover {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #38bdf8;
+  color: #7dd3fc;
+}
+
+.solicitud-foto-preview-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.foto-thumbnail-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.foto-thumbnail {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.foto-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.foto-name {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.foto-size {
+  font-size: 0.725rem;
+  color: #94a3b8;
+}
+
+.solicitud-btn-quitar-foto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.solicitud-btn-quitar-foto:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Botón Principal ENVIAR SOLICITUD */
+.solicitud-submit-wrap {
+  margin-top: 0.5rem;
+}
+
+.solicitud-submit-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.95rem 1.5rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);
+  transition: all 0.2s ease;
+}
+
+.solicitud-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(2, 132, 199, 0.55);
+}
+
+.solicitud-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.solicitud-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: solSpin 0.7s linear infinite;
+}
+
+@keyframes solSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pantalla de Éxito */
+.solicitud-success-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.solicitud-success-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.18);
+  border: 2px solid #10b981;
+  color: #34d399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.35);
+}
+
+.solicitud-success-heading {
   font-size: 1.35rem;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 0.5rem 0;
 }
 
-.qr-success-lead {
+.solicitud-success-subtext {
   font-size: 0.88rem;
-  color: #475569;
-  margin: 0 0 1.25rem 0;
+  color: #94a3b8;
+  margin: 0 0 1.5rem 0;
+  max-width: 400px;
+  line-height: 1.45;
 }
 
-.qr-folio-display-box {
-  background: #f0f9ff;
-  border: 2px dashed #38bdf8;
-  border-radius: 1rem;
-  padding: 1.1rem;
-  margin-bottom: 1.5rem;
-}
-
-.qr-folio-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #0369a1;
-  font-weight: 700;
-}
-
-.qr-folio-number {
-  font-size: 2rem;
-  font-weight: 900;
-  color: #0284c7;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  margin-top: 0.25rem;
-}
-
-.qr-success-details {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 0.85rem 1rem;
-  font-size: 0.82rem;
-  color: #475569;
-  text-align: left;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
-}
-
-.qr-success-details strong {
-  color: #0f172a;
-}
-
-.qr-reset-btn {
-  background: #0f172a;
-  color: #ffffff;
-  border: none;
-  border-radius: 0.75rem;
-  padding: 0.85rem 1.2rem;
-  font-size: 0.95rem;
-  font-weight: 700;
+.solicitud-folio-card {
   width: 100%;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  min-height: 48px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 12px;
+  padding: 1.15rem;
+  box-sizing: border-box;
+  margin-bottom: 1.5rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.qr-reset-btn:hover {
-  background: #1e293b;
-}
-
-/* Spinner */
-.qr-spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: spinQr 0.8s linear infinite;
-  display: inline-block;
-}
-
-@keyframes spinQr {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Footer institucional */
-.qr-footer-credit {
-  margin-top: 1.5rem;
-  text-align: center;
+.solicitud-folio-label {
   font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.solicitud-folio-code {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.04em;
+  margin: 0.3rem 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.solicitud-folio-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 6px #fbbf24;
+}
+
+.solicitud-summary-list {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.4rem;
+}
+
+.summary-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.summary-label {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.summary-val {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.text-red { color: #f87171 !important; }
+.text-green { color: #34d399 !important; }
+
+/* Pie de ventana */
+.solicitud-window-footer {
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  font-size: 0.775rem;
   color: #64748b;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .solicitud-card-window {
+    padding: 1.5rem 1.15rem;
+    border-radius: 16px;
+  }
+  .solicitud-main-title {
+    font-size: 1.25rem;
+  }
+  .solicitud-radios-row {
+    grid-template-columns: 1fr;
+  }
 }

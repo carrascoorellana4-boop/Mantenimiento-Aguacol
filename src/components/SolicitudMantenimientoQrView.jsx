@@ -1,13 +1,12 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import Icon from './Icon'
 import './SolicitudMantenimientoQrView.css'
 
-const AREAS = [
+const AREAS_CATALOGO = [
   {
     id: 'Producción JJV',
-    title: 'Producción JJV',
-    desc: 'Líneas 1 a 9, envasado, hornos y servicios JJV',
-    icon: '🏭',
+    nombre: 'Producción JJV',
     lineas: [
       'Línea 1',
       'Línea 2',
@@ -18,96 +17,150 @@ const AREAS = [
       'Línea 7',
       'Línea 8',
       'Línea 9',
-      'Horno de cloro',
-      'Selladora de cloro',
-      'Desmineralizador',
-      'Compresor JJV',
+      'Galpón Cloro',
+      'Tratamiento de Agua',
       'Otro sector JJV'
     ]
   },
   {
-    id: 'Plásticos',
-    title: 'Plásticos',
-    desc: 'Extrusión (M1-M5), Inyección y Soplado / PET (S1-S2)',
-    icon: '⚙️',
+    id: 'Plásticos / Extrusión',
+    nombre: 'Plásticos / Extrusión',
     lineas: [
       'Extrusora M1',
       'Extrusora M2',
       'Extrusora M3',
       'Extrusora M4',
       'Extrusora M5',
-      'Inyectora de Preformas 1',
-      'Inyectora de Preformas 2',
-      'Inyectora BORCHE',
-      'Inyectora 2',
-      'Sopladora S1',
-      'Sopladora S2',
       'Molino / Mezclado',
+      'Otro sector Extrusión'
+    ]
+  },
+  {
+    id: 'Plásticos / Inyección',
+    nombre: 'Plásticos / Inyección',
+    lineas: [
+      'Inyectora de preformas 1',
+      'Inyectora de preformas 2',
+      'Inyectora BORCHE',
+      'Inyectora 2 (Tapas/Manillas)',
+      'Otro sector Inyección'
+    ]
+  },
+  {
+    id: 'Soplado',
+    nombre: 'Soplado',
+    lineas: [
+      'Sopladora S1 (PET Auto 5LT)',
+      'Sopladora S2 (PET Auto Botella)',
       'Compresor Alta Presión',
-      'Otro sector Plásticos'
+      'Otro sector Soplado'
+    ]
+  },
+  {
+    id: 'Servicios Generales',
+    nombre: 'Servicios Generales',
+    lineas: [
+      'Sistema Eléctrico Galpón Producción',
+      'Sala de Compresores',
+      'Caldera',
+      'Planta de Tratamiento / Riles',
+      'Taller Mecánico',
+      'Otro sector Servicios'
     ]
   },
   {
     id: 'Otro',
-    title: 'Otro',
-    desc: 'Servicios generales, bodega, calderas u otras áreas',
-    icon: '📦',
+    nombre: 'Otro',
     lineas: [
-      'Servicios Generales',
       'Bodega',
-      'Caldera',
-      'Planta de Tratamiento / Riles',
-      'Taller Mecánico',
-      'Otro'
+      'Oficinas / Casino',
+      'Otro sector'
     ]
   }
 ]
 
-export default function SolicitudMantenimientoQrView() {
-  const [step, setStep] = useState(1) // 1: Seleccionar área, 2: Formulario, 3: Éxito
-  const [selectedArea, setSelectedArea] = useState('')
+export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
+  const [area, setArea] = useState('Producción JJV')
   const [nombre, setNombre] = useState('')
   const [linea, setLinea] = useState('')
-  const [lineaOtroTexto, setLineaOtroTexto] = useState('')
+  const [equipo, setEquipo] = useState('')
   const [descripcion, setDescripcion] = useState('')
+  const [lineaDetenida, setLineaDetenida] = useState('no') // 'si' | 'no'
+
+  const [fotoFile, setFotoFile] = useState(null)
+  const [fotoPreview, setFotoPreview] = useState(null)
+  const [fotoBase64, setFotoBase64] = useState(null)
 
   const [loading, setLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [createdOt, setCreatedOt] = useState(null)
   const [errors, setErrors] = useState({})
   const [serverError, setServerError] = useState('')
-  const [createdOt, setCreatedOt] = useState(null)
 
-  const activeAreaObj = AREAS.find((a) => a.id === selectedArea) || null
+  const fileInputRef = useRef(null)
 
-  const handleSelectArea = (areaId) => {
-    setSelectedArea(areaId)
-    setLinea('')
-    setLineaOtroTexto('')
-    setErrors({})
-    setServerError('')
-    setStep(2)
+  // Obtener las líneas disponibles según el área seleccionada
+  const activeAreaObj = AREAS_CATALOGO.find((a) => a.id === area) || AREAS_CATALOGO[0]
+
+  // Si cambia el área, resetear la línea seleccionada si ya no pertenece
+  useEffect(() => {
+    if (activeAreaObj && !activeAreaObj.lineas.includes(linea)) {
+      setLinea('')
+    }
+  }, [area])
+
+  const handleFotoChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 12 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, foto: 'La foto no debe superar los 12 MB.' }))
+      return
+    }
+
+    setFotoFile(file)
+    const previewUrl = URL.createObjectURL(file)
+    setFotoPreview(previewUrl)
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setFotoBase64(reader.result)
+    }
+    reader.readAsDataURL(file)
+
+    if (errors.foto) {
+      setErrors((prev) => ({ ...prev, foto: null }))
+    }
   }
 
-  const handleBackToStep1 = () => {
-    setStep(1)
-    setErrors({})
-    setServerError('')
+  const handleRemoveFoto = () => {
+    if (fotoPreview) {
+      URL.revokeObjectURL(fotoPreview)
+    }
+    setFotoFile(null)
+    setFotoPreview(null)
+    setFotoBase64(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const validateForm = () => {
     const errs = {}
+    if (!area) errs.area = 'Selecciona el área de la planta.'
     if (!nombre.trim() || nombre.trim().length < 2) {
       errs.nombre = 'Ingresa tu nombre completo (mínimo 2 letras).'
     }
     if (!linea) {
-      errs.linea = 'Debes seleccionar la línea o sector del problema.'
-    } else if (linea === 'Otro' || linea.startsWith('Otro sector')) {
-      if (!lineaOtroTexto.trim()) {
-        errs.lineaOtroTexto = 'Especifica cuál es el sector o equipo.'
-      }
+      errs.linea = 'Selecciona la línea o sector del problema.'
     }
-    if (!descripcion.trim() || descripcion.trim().length < 5) {
-      errs.descripcion = 'Describe brevemente el problema o requerimiento (mínimo 5 caracteres).'
+    if (!descripcion.trim() || descripcion.trim().length < 4) {
+      errs.descripcion = 'Describe brevemente el problema o trabajo requerido (mínimo 4 caracteres).'
     }
+    if (!lineaDetenida) {
+      errs.lineaDetenida = 'Indica si la línea está detenida o no.'
+    }
+
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -118,23 +171,22 @@ export default function SolicitudMantenimientoQrView() {
     if (!validateForm()) return
 
     setLoading(true)
-    const lineaFinal =
-      (linea === 'Otro' || linea.startsWith('Otro sector')) && lineaOtroTexto.trim()
-        ? `${linea}: ${lineaOtroTexto.trim()}`
-        : linea
 
     const payload = {
-      area: selectedArea,
+      area,
       solicitante: nombre.trim(),
-      linea: lineaFinal,
-      descripcion: descripcion.trim()
+      linea,
+      equipo: equipo.trim(),
+      descripcion: descripcion.trim(),
+      linea_detenida: lineaDetenida === 'si',
+      foto_base64: fotoBase64 || null
     }
 
     try {
-      // 1. Intentar endpoint backend público /api/solicitudes
       let result = null
       let ok = false
 
+      // 1. Intentar endpoint backend público /api/solicitudes
       try {
         const resp = await fetch('/api/solicitudes', {
           method: 'POST',
@@ -145,8 +197,8 @@ export default function SolicitudMantenimientoQrView() {
           result = await resp.json()
           ok = true
         }
-      } catch {
-        // Fallback si no está el proxy web local en desarrollo
+      } catch (errApi) {
+        console.warn('Endpoint /api/solicitudes no disponible, usando fallback directo RPC:', errApi.message)
       }
 
       // 2. Si no respondió /api/solicitudes, llamar a la función RPC de Supabase directamente
@@ -155,7 +207,10 @@ export default function SolicitudMantenimientoQrView() {
           p_area: payload.area,
           p_solicitante: payload.solicitante,
           p_linea: payload.linea,
-          p_descripcion: payload.descripcion
+          p_descripcion: payload.descripcion,
+          p_equipo: payload.equipo || null,
+          p_linea_detenida: payload.linea_detenida,
+          p_foto_url: null
         })
 
         if (error) {
@@ -166,7 +221,7 @@ export default function SolicitudMantenimientoQrView() {
       }
 
       setCreatedOt(result)
-      setStep(3)
+      setSubmitted(true)
     } catch (err) {
       setServerError(
         err.message || 'No fue posible registrar tu solicitud. Intenta nuevamente o avisa a tu supervisor.'
@@ -177,112 +232,174 @@ export default function SolicitudMantenimientoQrView() {
   }
 
   const handleReset = () => {
-    setStep(1)
-    setSelectedArea('')
+    setSubmitted(false)
+    setCreatedOt(null)
     setNombre('')
     setLinea('')
-    setLineaOtroTexto('')
+    setEquipo('')
     setDescripcion('')
+    setLineaDetenida('no')
+    handleRemoveFoto()
     setErrors({})
     setServerError('')
-    setCreatedOt(null)
   }
 
   return (
-    <div className="qr-solicitud-wrapper">
-      <header className="qr-header-branding">
-        <span className="qr-brand-badge">AGUACOL • MANTENIMIENTO</span>
-        <h1 className="qr-header-title">Solicitud de Mantenimiento</h1>
-        <p className="qr-header-subtitle">Levantamiento rápido de fallas y trabajos en planta</p>
-      </header>
-
-      <main className="qr-card-container">
-        {/* ====================================================================
-            PANTALLA 1: SELECCIÓN DE ÁREA DEL SOLICITANTE
-           ==================================================================== */}
-        {step === 1 && (
-          <div>
-            <h2 className="qr-step-title">¿A qué área perteneces?</h2>
-            <p className="qr-step-instruction">Toca tu área de trabajo para continuar</p>
-
-            <div className="qr-areas-grid">
-              {AREAS.map((area) => (
-                <button
-                  key={area.id}
-                  type="button"
-                  className="qr-area-btn"
-                  onClick={() => handleSelectArea(area.id)}
-                >
-                  <div className="qr-area-icon-wrap" aria-hidden="true">
-                    <span>{area.icon}</span>
-                  </div>
-                  <div className="qr-area-btn-content">
-                    <span className="qr-area-btn-title">{area.title}</span>
-                    <span className="qr-area-btn-desc">{area.desc}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+    <div className="solicitud-page-wrapper">
+      <div className="solicitud-card-window">
+        {/* Cabecera de la ventana */}
+        <header className="solicitud-window-header">
+          {onBackToApp && (
+            <button
+              type="button"
+              className="solicitud-back-link"
+              onClick={onBackToApp}
+              title="Volver al panel principal"
+            >
+              <Icon n="left" />
+              <span>Volver a la intranet</span>
+            </button>
+          )}
+          <div className="solicitud-brand-badge">
+            <span className="solicitud-brand-dot"></span>
+            <span>AGUACOL • PLANTA PRODUCTIVA</span>
           </div>
-        )}
+          <h1 className="solicitud-main-title">SOLICITUD DE MANTENIMIENTO</h1>
+          <p className="solicitud-subtitle">
+            Ingreso directo de fallas, requerimientos y paradas operacionales
+          </p>
+        </header>
 
-        {/* ====================================================================
-            PANTALLA 2: FORMULARIO DE LEVANTAMIENTO
-           ==================================================================== */}
-        {step === 2 && (
-          <div>
-            <div className="qr-form-header-bar">
-              <button
-                type="button"
-                className="qr-back-btn"
-                onClick={handleBackToStep1}
-                disabled={loading}
-              >
-                ← Cambiar área
-              </button>
-              <span className="qr-selected-area-pill">
-                Área: <strong>{selectedArea}</strong>
+        {/* PANTALLA DE ÉXITO */}
+        {submitted ? (
+          <div className="solicitud-success-box">
+            <div className="solicitud-success-icon-wrap">
+              <Icon n="check" size="2.5rem" />
+            </div>
+            <h2 className="solicitud-success-heading">¡Solicitud Ingresada Exitosamente!</h2>
+            <p className="solicitud-success-subtext">
+              El equipo de mantenimiento ha recibido tu reporte en tiempo real y fue registrado en el sistema.
+            </p>
+
+            <div className="solicitud-folio-card">
+              <span className="solicitud-folio-label">Orden de Trabajo Generada</span>
+              <div className="solicitud-folio-code">
+                {createdOt?.codigo_ot || (createdOt?.numero_ot ? `OT N° ${createdOt.numero_ot}` : 'OT GENERADA')}
+              </div>
+              <span className="solicitud-folio-status">
+                <span className="status-dot"></span> Estado: Pendiente de Atención
               </span>
             </div>
 
+            <div className="solicitud-summary-list">
+              <div className="summary-item">
+                <span className="summary-label">Solicitante:</span>
+                <span className="summary-val">{nombre}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Área:</span>
+                <span className="summary-val">{area}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Línea / Sector:</span>
+                <span className="summary-val">{linea}</span>
+              </div>
+              {equipo && (
+                <div className="summary-item">
+                  <span className="summary-label">Equipo:</span>
+                  <span className="summary-val">{equipo}</span>
+                </div>
+              )}
+              <div className="summary-item">
+                <span className="summary-label">¿Línea detenida?:</span>
+                <span className={`summary-val ${lineaDetenida === 'si' ? 'text-red' : 'text-green'}`}>
+                  {lineaDetenida === 'si' ? 'Sí (Prioridad Alta)' : 'No (Operando normalmente)'}
+                </span>
+              </div>
+              {fotoPreview && (
+                <div className="summary-item">
+                  <span className="summary-label">Fotografía:</span>
+                  <span className="summary-val">Adjunta ✓</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="solicitud-submit-btn"
+              onClick={handleReset}
+              style={{ marginTop: '1.5rem' }}
+            >
+              <Icon n="plus" />
+              <span>Ingresar otra solicitud</span>
+            </button>
+          </div>
+        ) : (
+          /* FORMULARIO ESTILO SOLICITADO */
+          <form className="solicitud-form" onSubmit={handleSubmit} noValidate>
             {serverError && (
-              <div className="qr-server-error" role="alert">
-                <span>⚠️</span>
+              <div className="solicitud-alert-box error" role="alert">
+                <Icon n="warn" />
                 <span>{serverError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} noValidate>
-              {/* Nombre del trabajador */}
-              <div className="qr-form-group">
-                <label className="qr-form-label" htmlFor="qr-input-nombre">
-                  Nombre del trabajador <span className="req">*</span>
-                </label>
-                <input
-                  id="qr-input-nombre"
-                  type="text"
-                  className={`qr-input ${errors.nombre ? 'is-invalid' : ''}`}
-                  placeholder="Ej. Juan Pérez"
-                  value={nombre}
+            {/* 1. Área * */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label" htmlFor="sol-area">
+                Área <span className="req">*</span>
+              </label>
+              <div className="solicitud-select-wrap">
+                <select
+                  id="sol-area"
+                  className={`solicitud-select ${errors.area ? 'is-invalid' : ''}`}
+                  value={area}
                   onChange={(e) => {
-                    setNombre(e.target.value)
-                    if (errors.nombre) setErrors((prev) => ({ ...prev, nombre: null }))
+                    setArea(e.target.value)
+                    if (errors.area) setErrors((prev) => ({ ...prev, area: null }))
                   }}
                   disabled={loading}
-                  autoComplete="name"
-                  autoFocus
-                />
-                {errors.nombre && <span className="qr-field-error">{errors.nombre}</span>}
+                >
+                  {AREAS_CATALOGO.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
+              {errors.area && <span className="solicitud-error-text">{errors.area}</span>}
+            </div>
 
-              {/* Línea / Sector según área */}
-              <div className="qr-form-group">
-                <label className="qr-form-label" htmlFor="qr-select-linea">
-                  Línea / Sector de trabajo <span className="req">*</span>
-                </label>
+            {/* 2. Nombre * */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label" htmlFor="sol-nombre">
+                Nombre <span className="req">*</span>
+              </label>
+              <input
+                id="sol-nombre"
+                type="text"
+                className={`solicitud-input ${errors.nombre ? 'is-invalid' : ''}`}
+                placeholder="Nombre y apellido de quien reporta"
+                value={nombre}
+                onChange={(e) => {
+                  setNombre(e.target.value)
+                  if (errors.nombre) setErrors((prev) => ({ ...prev, nombre: null }))
+                }}
+                disabled={loading}
+                autoComplete="name"
+              />
+              {errors.nombre && <span className="solicitud-error-text">{errors.nombre}</span>}
+            </div>
+
+            {/* 3. Línea / Sector * */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label" htmlFor="sol-linea">
+                Línea / Sector <span className="req">*</span>
+              </label>
+              <div className="solicitud-select-wrap">
                 <select
-                  id="qr-select-linea"
-                  className={`qr-select ${errors.linea ? 'is-invalid' : ''}`}
+                  id="sol-linea"
+                  className={`solicitud-select ${errors.linea ? 'is-invalid' : ''}`}
                   value={linea}
                   onChange={(e) => {
                     setLinea(e.target.value)
@@ -290,130 +407,177 @@ export default function SolicitudMantenimientoQrView() {
                   }}
                   disabled={loading}
                 >
-                  <option value="">-- Selecciona línea o máquina --</option>
+                  <option value="">-- Seleccionar Línea / Sector --</option>
                   {activeAreaObj?.lineas.map((l) => (
                     <option key={l} value={l}>
                       {l}
                     </option>
                   ))}
                 </select>
-                {errors.linea && <span className="qr-field-error">{errors.linea}</span>}
               </div>
+              {errors.linea && <span className="solicitud-error-text">{errors.linea}</span>}
+            </div>
 
-              {/* Campo complementario si eligió "Otro" o "Otro sector" */}
-              {(linea === 'Otro' || linea.startsWith('Otro sector')) && (
-                <div className="qr-form-group">
-                  <label className="qr-form-label" htmlFor="qr-input-linea-otro">
-                    Especificar sector / equipo <span className="req">*</span>
-                  </label>
+            {/* 4. Equipo */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label" htmlFor="sol-equipo">
+                Equipo <span className="optional-tag">(Opcional)</span>
+              </label>
+              <input
+                id="sol-equipo"
+                type="text"
+                className="solicitud-input"
+                placeholder="Ej: Horno, Selladora, Bomba 2, Cinta transportadora..."
+                value={equipo}
+                onChange={(e) => setEquipo(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            {/* 5. Descripción del problema * */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label" htmlFor="sol-descripcion">
+                Descripción del problema <span className="req">*</span>
+              </label>
+              <textarea
+                id="sol-descripcion"
+                className={`solicitud-textarea ${errors.descripcion ? 'is-invalid' : ''}`}
+                rows={4}
+                placeholder="Indica qué ocurre: ruido anormal, fuga de agua/aceite, atasco de material, motor no enciende, etc."
+                value={descripcion}
+                onChange={(e) => {
+                  setDescripcion(e.target.value)
+                  if (errors.descripcion) setErrors((prev) => ({ ...prev, descripcion: null }))
+                }}
+                disabled={loading}
+              />
+              {errors.descripcion && (
+                <span className="solicitud-error-text">{errors.descripcion}</span>
+              )}
+            </div>
+
+            {/* 6. ¿La línea está detenida? * */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label">
+                ¿La línea está detenida? <span className="req">*</span>
+              </label>
+              <div className="solicitud-radios-row">
+                <label className={`solicitud-radio-card ${lineaDetenida === 'si' ? 'selected-danger' : ''}`}>
                   <input
-                    id="qr-input-linea-otro"
-                    type="text"
-                    className={`qr-input ${errors.lineaOtroTexto ? 'is-invalid' : ''}`}
-                    placeholder="Ej. Cinta transportadora posterior, compresor auxiliar..."
-                    value={lineaOtroTexto}
-                    onChange={(e) => {
-                      setLineaOtroTexto(e.target.value)
-                      if (errors.lineaOtroTexto) setErrors((prev) => ({ ...prev, lineaOtroTexto: null }))
-                    }}
+                    type="radio"
+                    name="linea_detenida"
+                    value="si"
+                    checked={lineaDetenida === 'si'}
+                    onChange={() => setLineaDetenida('si')}
                     disabled={loading}
                   />
-                  {errors.lineaOtroTexto && (
-                    <span className="qr-field-error">{errors.lineaOtroTexto}</span>
-                  )}
+                  <span className="radio-indicator"></span>
+                  <div className="radio-text">
+                    <span className="radio-title">Sí</span>
+                    <span className="radio-desc">Máquina o línea parada por falla</span>
+                  </div>
+                </label>
+
+                <label className={`solicitud-radio-card ${lineaDetenida === 'no' ? 'selected-normal' : ''}`}>
+                  <input
+                    type="radio"
+                    name="linea_detenida"
+                    value="no"
+                    checked={lineaDetenida === 'no'}
+                    onChange={() => setLineaDetenida('no')}
+                    disabled={loading}
+                  />
+                  <span className="radio-indicator"></span>
+                  <div className="radio-text">
+                    <span className="radio-title">No</span>
+                    <span className="radio-desc">Sigue en marcha o aviso preventivo</span>
+                  </div>
+                </label>
+              </div>
+              {errors.lineaDetenida && (
+                <span className="solicitud-error-text">{errors.lineaDetenida}</span>
+              )}
+            </div>
+
+            {/* 7. Foto */}
+            <div className="solicitud-field-group">
+              <label className="solicitud-label">Foto <span className="optional-tag">(Opcional)</span></label>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleFotoChange}
+                disabled={loading}
+              />
+
+              {!fotoPreview ? (
+                <button
+                  type="button"
+                  className="solicitud-btn-foto"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                >
+                  <Icon n="camera" />
+                  <span>+ Agregar foto</span>
+                </button>
+              ) : (
+                <div className="solicitud-foto-preview-wrap">
+                  <div className="foto-thumbnail-box">
+                    <img src={fotoPreview} alt="Foto adjunta de solicitud" className="foto-thumbnail" />
+                    <div className="foto-info">
+                      <span className="foto-name">{fotoFile?.name || 'Fotografía capturada'}</span>
+                      <span className="foto-size">
+                        {fotoFile ? `${(fotoFile.size / 1024).toFixed(0)} KB` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="solicitud-btn-quitar-foto"
+                    onClick={handleRemoveFoto}
+                    disabled={loading}
+                    title="Eliminar esta foto"
+                  >
+                    <Icon n="x" />
+                    <span>Quitar</span>
+                  </button>
                 </div>
               )}
+              {errors.foto && <span className="solicitud-error-text">{errors.foto}</span>}
+            </div>
 
-              {/* Descripción del levantamiento */}
-              <div className="qr-form-group">
-                <label className="qr-form-label" htmlFor="qr-input-descripcion">
-                  Describe el problema o trabajo requerido <span className="req">*</span>
-                </label>
-                <textarea
-                  id="qr-input-descripcion"
-                  className={`qr-textarea ${errors.descripcion ? 'is-invalid' : ''}`}
-                  rows={4}
-                  placeholder="Explica qué ocurrió: ruido extraño, fuga, equipo no enciende, atasco de material, etc."
-                  value={descripcion}
-                  onChange={(e) => {
-                    setDescripcion(e.target.value)
-                    if (errors.descripcion) setErrors((prev) => ({ ...prev, descripcion: null }))
-                  }}
-                  disabled={loading}
-                />
-                {errors.descripcion && (
-                  <span className="qr-field-error">{errors.descripcion}</span>
-                )}
-                <span className="qr-helper-text">
-                  Entre más detalles proporciones, más rápido responderá el equipo de mecánicos.
-                </span>
-              </div>
-
-              {/* Botón de Enviar */}
+            {/* 8. Botón ENVIAR SOLICITUD */}
+            <div className="solicitud-submit-wrap">
               <button
                 type="submit"
-                className="qr-submit-btn"
+                className="solicitud-submit-btn"
                 disabled={loading}
               >
                 {loading ? (
                   <>
-                    <span className="qr-spinner" aria-hidden="true" />
+                    <span className="solicitud-spinner" aria-hidden="true" />
                     <span>Enviando solicitud...</span>
                   </>
                 ) : (
-                  'Enviar solicitud de mantenimiento'
+                  <>
+                    <Icon n="check" />
+                    <span>ENVIAR SOLICITUD</span>
+                  </>
                 )}
               </button>
-            </form>
-          </div>
+            </div>
+          </form>
         )}
 
-        {/* ====================================================================
-            PANTALLA 3: SOLICITUD ENVIADA CORRECTAMENTE
-           ==================================================================== */}
-        {step === 3 && (
-          <div className="qr-success-card">
-            <div className="qr-success-icon-wrap" aria-hidden="true">
-              ✓
-            </div>
-            <h2 className="qr-success-title">Solicitud enviada correctamente</h2>
-            <p className="qr-success-lead">
-              El equipo de Mantenimiento ha recibido tu reporte y fue ingresado al sistema.
-            </p>
-
-            <div className="qr-folio-display-box">
-              <span className="qr-folio-label">Número de Orden de Trabajo</span>
-              <div className="qr-folio-number">
-                {createdOt?.codigo_ot || (createdOt?.numero_ot ? `OT N° ${createdOt.numero_ot}` : 'OT GENERADA')}
-              </div>
-            </div>
-
-            <div className="qr-success-details">
-              <div><strong>Solicitante:</strong> {nombre}</div>
-              <div><strong>Área:</strong> {selectedArea}</div>
-              <div>
-                <strong>Ubicación:</strong>{' '}
-                {(linea === 'Otro' || linea.startsWith('Otro sector')) && lineaOtroTexto.trim()
-                  ? `${linea}: ${lineaOtroTexto.trim()}`
-                  : linea}
-              </div>
-              <div><strong>Estado:</strong> Pendiente de asignación técnica</div>
-            </div>
-
-            <button
-              type="button"
-              className="qr-reset-btn"
-              onClick={handleReset}
-            >
-              Crear otra solicitud
-            </button>
-          </div>
-        )}
-      </main>
-
-      <footer className="qr-footer-credit">
-        Sistema de Mantenimiento AGUACOL • Acceso directo en planta
-      </footer>
+        <footer className="solicitud-window-footer">
+          <span>Sistema de Mantenimiento AGUACOL</span>
+          <span>•</span>
+          <span>mantenimiento.aguacol.cl</span>
+        </footer>
+      </div>
     </div>
   )
 }

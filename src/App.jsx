@@ -324,8 +324,30 @@ const generarUuid = () => {
   })
 }
 
+// Detección de ruta pública de Solicitud de Mantenimiento (/solicitud-mantenimiento)
+const checkIsSolicitudPath = () => {
+  if (typeof window === 'undefined') return false
+  const p = (window.location.pathname || '').toLowerCase()
+  const h = (window.location.hash || '').toLowerCase()
+  return (
+    p === '/solicitud-mantenimiento' ||
+    p.startsWith('/solicitud-mantenimiento/') ||
+    p.startsWith('/solicitud') ||
+    h.includes('solicitud-mantenimiento')
+  )
+}
+
 function App() {
   const [activeView, setActiveView] = useState('home')
+  const [isSolicitudRoute, setIsSolicitudRoute] = useState(() => checkIsSolicitudPath())
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsSolicitudRoute(checkIsSolicitudPath())
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
   
   // Estado de Autenticación
   const [session, setSession] = useState(null)
@@ -2730,6 +2752,19 @@ function App() {
     )
   }
 
+  // Ventana pública directa de Solicitud de Mantenimiento (/solicitud-mantenimiento)
+  // Accesible tanto sin sesión (vía enlace o QR en planta) como desde la intranet
+  if (isSolicitudRoute || activeView === 'solicitud-mantenimiento') {
+    return (
+      <SolicitudMantenimientoQrView
+        onBackToApp={session ? () => {
+          setIsSolicitudRoute(false)
+          setActiveView('home')
+        } : null}
+      />
+    )
+  }
+
   // Inicio de sesión a pantalla completa (sin menú), con su propia escena animada.
   // Sin sesión no se ve nada del sistema: solo el inicio de sesión.
   if (!session) {
@@ -2811,6 +2846,17 @@ function App() {
                 >
                   <span className="nav-item-icon"><Icon n="list" /></span>
                   <span>Órdenes de Trabajo</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={`nav-item ${activeView === 'solicitud-mantenimiento' ? 'active' : ''}`}
+                  onClick={() => setActiveView('solicitud-mantenimiento')}
+                  title="Abrir formulario de Solicitud de Mantenimiento (/solicitud-mantenimiento)"
+                >
+                  <span className="nav-item-icon"><Icon n="tools" /></span>
+                  <span>Solicitud de Mantenimiento</span>
                 </button>
               </li>
               <li>
@@ -3183,6 +3229,33 @@ function App() {
                   <div className="home-card-footer">
                     <span className="home-card-action">
                       Ingresar <span className="arrow">→</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 7. SOLICITUD DE MANTENIMIENTO */}
+                <div
+                  className="home-module-card card-active-module"
+                  onClick={() => setActiveView('solicitud-mantenimiento')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
+                >
+                  <div className="home-card-header">
+                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
+                      <span className="home-card-icon"><Icon n="tools" /></span>
+                    </div>
+                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
+                  </div>
+                  <div className="home-card-body">
+                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
+                    <p className="home-card-desc">
+                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
+                    </p>
+                  </div>
+                  <div className="home-card-footer">
+                    <span className="home-card-action">
+                      Abrir Ventana <span className="arrow">→</span>
                     </span>
                   </div>
                 </div>
@@ -4261,6 +4334,11 @@ function App() {
               </div>
             </section>
           </>
+        )}
+
+        {/* VISTA: Solicitud de Mantenimiento (Ventana de levantamiento) */}
+        {activeView === 'solicitud-mantenimiento' && (
+          <SolicitudMantenimientoQrView onBackToApp={() => setActiveView('home')} />
         )}
 
         {/* VISTA 1: Dashboard de Mantenimiento (Estilo Fracttal) */}
