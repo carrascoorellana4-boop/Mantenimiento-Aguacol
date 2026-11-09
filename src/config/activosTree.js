@@ -1164,6 +1164,30 @@ export const JERARQUIA_APROBADA = [
         ubicacion: 'Galpón de Cloro',
         hijos: []
       },
+      {
+        id: '264bebd7-326c-4e58-880c-ef55ad0647ff',
+        codigo: 'AGL-JJV-CLORO-BOM-01',
+        nombre: 'Bomba de Alimentación Estanque Cloro 1',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Cloro',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'Galpón de Cloro',
+        hijos: []
+      },
+      {
+        id: '469c74de-3696-4f1e-aa5c-f331777845ad',
+        codigo: 'AGL-JJV-CLORO-BOM-02',
+        nombre: 'Bomba de Alimentación Estanque Cloro 2',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Cloro',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'Galpón de Cloro',
+        hijos: []
+      },
 
       // 3.4 COCINA
       {
