@@ -240,60 +240,73 @@ export default function ValidacionPendientesView({
     setLoadingRowId(item.id)
 
     try {
-      // 1. Crear el registro en public.bitacora_mantenimiento
-      const fechaHoraFinal = item.fecha_hora || item.fecha || new Date().toISOString()
-      const trabajoRealizadoFinal = item.trabajo_realizado || item.comentario || 'Mantenimiento validado'
       const userId = session?.user?.id || null
 
-      const newIntervencion = {
-        fecha_hora: fechaHoraFinal,
-        equipo_id: targetEquipoId,
-        tecnico: item.tecnico || 'Técnico no especificado',
-        es_falla: Boolean(item.es_falla),
-        tipo_intervencion: item.tipo_intervencion || (item.es_falla ? 'Correctiva' : 'Preventiva'),
-        falla_motivo: item.es_falla ? (item.falla_motivo || trabajoRealizadoFinal) : null,
-        trabajo_realizado: trabajoRealizadoFinal,
-        estado_final: item.estado_final || 'Operativo',
-        area: item.area_origen || targetEquipo.area || null,
-        tipo_falla: item.tipo_falla || (item.es_falla ? 'Mecánica' : null),
-        origen: 'Validación de importación',
-        import_batch_id: item.import_batch_id || null,
-        created_by: userId
-      }
+      // 1. Intentar resolución atómica por RPC
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('resolver_importacion_pendiente', {
+        p_id: item.id,
+        p_equipo_id: targetEquipoId,
+        p_guardar_alias: shouldSaveAlias,
+        p_alias: rawAliasText || null,
+        p_user_id: userId
+      })
 
-      const { error: insertErr } = await supabase
-        .from('bitacora_mantenimiento')
-        .insert([newIntervencion])
+      if (rpcErr) {
+        console.warn('RPC resolver_importacion_pendiente falló o no existe, intentando fallback directo:', rpcErr)
+        // Fallback directo a tablas si la función RPC no respondiera
+        const fechaHoraFinal = item.fecha_hora || item.fecha || new Date().toISOString()
+        const trabajoRealizadoFinal = item.trabajo_realizado || item.comentario || 'Mantenimiento validado'
 
-      if (insertErr) {
-        throw new Error(`Error al registrar en bitacora_mantenimiento: ${insertErr.message}`)
-      }
-
-      // 2. Actualizar registro en public.bitacora_importacion_pendiente (conservar para auditoría)
-      const { error: updateErr } = await supabase
-        .from('bitacora_importacion_pendiente')
-        .update({
-          estado: 'Resuelto',
-          equipo_id_resuelto: targetEquipoId,
-          motivo_pendiente: `Resuelto a ${targetEquipo.nombre} [${targetEquipo.codigo}]`,
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId
-        })
-        .eq('id', item.id)
-
-      if (updateErr) {
-        console.warn('Advertencia al actualizar bitacora_importacion_pendiente:', updateErr)
-      }
-
-      // 3. Crear alias si el usuario lo confirmó y pasó validación de seguridad
-      if (shouldSaveAlias && rawAliasText) {
-        try {
-          await supabase
-            .from('equipo_alias')
-            .insert([{ equipo_id: targetEquipoId, alias: rawAliasText }])
-        } catch (aliasErr) {
-          console.warn('No se pudo guardar alias (posible duplicado):', aliasErr)
+        const newIntervencion = {
+          fecha_hora: fechaHoraFinal,
+          equipo_id: targetEquipoId,
+          tecnico: item.tecnico || 'Técnico no especificado',
+          es_falla: Boolean(item.es_falla),
+          tipo_intervencion: item.tipo_intervencion || (item.es_falla ? 'Correctiva' : 'Preventiva'),
+          falla_motivo: item.es_falla ? (item.falla_motivo || trabajoRealizadoFinal) : null,
+          trabajo_realizado: trabajoRealizadoFinal,
+          estado_final: item.estado_final || 'Operativo',
+          area: item.area_origen || targetEquipo.area || null,
+          tipo_falla: item.tipo_falla || (item.es_falla ? 'Mecánica' : null),
+          origen: 'Validación de importación',
+          import_batch_id: item.import_batch_id || null,
+          created_by: userId
         }
+
+        const { error: insertErr } = await supabase
+          .from('bitacora_mantenimiento')
+          .insert([newIntervencion])
+
+        if (insertErr) {
+          throw new Error(`Error al registrar en bitacora_mantenimiento: ${insertErr.message}`)
+        }
+
+        const { error: updateErr } = await supabase
+          .from('bitacora_importacion_pendiente')
+          .update({
+            estado: 'Resuelto',
+            equipo_id_resuelto: targetEquipoId,
+            motivo_pendiente: `Resuelto a ${targetEquipo.nombre} [${targetEquipo.codigo}]`,
+            resolved_at: new Date().toISOString(),
+            resolved_by: userId
+          })
+          .eq('id', item.id)
+
+        if (updateErr) {
+          throw new Error(`Error al actualizar estado en bitacora_importacion_pendiente: ${updateErr.message}`)
+        }
+
+        if (shouldSaveAlias && rawAliasText) {
+          try {
+            await supabase
+              .from('equipo_alias')
+              .insert([{ equipo_id: targetEquipoId, alias: rawAliasText }])
+          } catch (aliasErr) {
+            console.warn('No se pudo guardar alias (posible duplicado):', aliasErr)
+          }
+        }
+      } else if (rpcData && !rpcData.ok) {
+        throw new Error(rpcData.error || 'No se pudo resolver el registro.')
       }
 
       onSuccessMessage(`Registro validado exitosamente y asignado a ${targetEquipo.nombre}.`)
@@ -322,18 +335,30 @@ export default function ValidacionPendientesView({
     setIgnoreLoading(true)
     try {
       const userId = session?.user?.id || null
-      const { error } = await supabase
-        .from('bitacora_importacion_pendiente')
-        .update({
-          estado: 'Ignorado',
-          motivo_pendiente: `Ignorado: ${finalReason}`,
-          motivo_ignorado: finalReason,
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId
-        })
-        .eq('id', ignoreModalItem.id)
 
-      if (error) throw new Error(error.message)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('ignorar_importacion_pendiente', {
+        p_id: ignoreModalItem.id,
+        p_motivo: finalReason,
+        p_user_id: userId
+      })
+
+      if (rpcErr) {
+        console.warn('RPC ignorar_importacion_pendiente falló, intentando fallback directo:', rpcErr)
+        const { error: updateErr } = await supabase
+          .from('bitacora_importacion_pendiente')
+          .update({
+            estado: 'Ignorado',
+            motivo_pendiente: `Ignorado: ${finalReason}`,
+            motivo_ignorado: finalReason,
+            resolved_at: new Date().toISOString(),
+            resolved_by: userId
+          })
+          .eq('id', ignoreModalItem.id)
+
+        if (updateErr) throw new Error(updateErr.message)
+      } else if (rpcData && !rpcData.ok) {
+        throw new Error(rpcData.error || 'No se pudo ignorar el registro.')
+      }
 
       onSuccessMessage(`Registro marcado como Ignorado (${finalReason}). No se incluyó en Bitácora.`)
       setIgnoreModalItem(null)
@@ -406,7 +431,7 @@ export default function ValidacionPendientesView({
         })
         .in('id', selectedRowIds)
 
-      if (updateErr) console.warn('Error al actualizar pendientes masivos:', updateErr)
+      if (updateErr) throw new Error(`Error al actualizar pendientes masivos: ${updateErr.message}`)
 
       onSuccessMessage(`Se asignaron y validaron exitosamente ${selectedRowIds.length} registros a ${targetEquipo.nombre}.`)
       setSelectedRowIds([])
