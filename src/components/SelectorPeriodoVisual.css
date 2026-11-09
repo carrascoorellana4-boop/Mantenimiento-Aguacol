@@ -1,21 +1,24 @@
-/* SelectorPeriodoVisual.css - Réplica fiel del componente visual de selección de período */
+/* SelectorPeriodoVisual.css - Selector visual de período integrado al tema oscuro AGUACOL */
 
 .selector-periodo-card {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  background: rgba(8, 40, 64, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 210, 240, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 8, 20, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   margin-bottom: 1.25rem;
   overflow: hidden;
   user-select: none;
 }
 
-/* CABECERA AZUL MARINO */
+/* CABECERA AZUL MARINO PROFUNDO */
 .selector-periodo-header {
-  background: linear-gradient(90deg, #071936 0%, #0f2952 100%);
+  background: linear-gradient(90deg, rgba(3, 20, 36, 0.95) 0%, rgba(8, 38, 62, 0.95) 100%);
+  border-bottom: 1px solid rgba(148, 210, 240, 0.15);
   color: #ffffff;
-  padding: 0.55rem 1.1rem;
+  padding: 0.65rem 1.15rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -33,46 +36,47 @@
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #ffffff;
+  color: #e8f4fb;
 }
 
 .selector-periodo-summary {
   font-size: 0.82rem;
-  color: #93c5fd;
+  color: #38bdf8;
   font-weight: 500;
 }
 
 .selector-periodo-all-btn {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #f1f5f9;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(148, 210, 240, 0.25);
+  color: #e0f2fe;
   font-size: 0.78rem;
   font-weight: 600;
-  padding: 0.3rem 0.75rem;
-  border-radius: 5px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
 }
 
 .selector-periodo-all-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(56, 189, 248, 0.22);
   color: #ffffff;
+  border-color: #38bdf8;
 }
 
 .selector-periodo-all-btn.active {
-  background: #22c55e;
-  border-color: #16a34a;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #34d399;
   color: #ffffff;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
-/* CUERPO DEL SELECTOR */
+/* CUERPO DEL SELECTOR (OSCURO EN SINTONÍA CON EL DASHBOARD) */
 .selector-periodo-body {
-  padding: 0.75rem 1.1rem 0.85rem;
+  padding: 0.85rem 1.15rem 0.95rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  background: #f8fafc;
+  gap: 0.75rem;
+  background: rgba(4, 25, 42, 0.65);
 }
 
 /* FILAS HORIZONTALES */
@@ -99,18 +103,20 @@
 }
 
 .selector-main-label {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.02em;
+  color: #bae6fd;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .selector-sub-label {
   font-size: 0.68rem;
   font-style: italic;
-  color: #94a3b8;
+  color: #7dd3fc;
+  opacity: 0.75;
   line-height: 1.1;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 /* COLUMNA DE BOTONES / CONTROLES */
@@ -133,68 +139,70 @@
 .quarters-group {
   margin-left: 0.5rem;
   padding-left: 0.75rem;
-  border-left: 1px solid #cbd5e1;
+  border-left: 1px solid rgba(148, 210, 240, 0.18);
 }
 
-/* ESTILO BASE DE LAS PÍLDORAS */
+/* ESTILO BASE DE LAS PÍLDORAS (TEMA OSCURO TRANSPARENTE) */
 .selector-pill {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
+  background: rgba(12, 48, 76, 0.7);
+  border: 1px solid rgba(148, 210, 240, 0.2);
+  color: #e2e8f0;
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.28rem 0.65rem;
+  padding: 0.3rem 0.68rem;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.12s ease-in-out;
+  transition: all 0.15s ease-in-out;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   touch-action: none;
 }
 
 .selector-pill:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background: rgba(20, 72, 112, 0.9);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
 }
 
-/* PÍLDORA ACTIVA (VERDE) */
+/* PÍLDORA ACTIVA (VERDE ESMERALDA AGUACOL) */
 .selector-pill.pill-active {
-  background: #22c55e !important;
-  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border-color: #34d399 !important;
   color: #ffffff !important;
   font-weight: 700;
-  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.35);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.45);
 }
 
 .selector-pill.pill-active:hover {
-  background: #16a34a !important;
-  border-color: #15803d !important;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  border-color: #6ee7b7 !important;
 }
 
 /* VARIANTES ESPECÍFICAS */
 .year-pill {
-  min-width: 48px;
-  padding: 0.25rem 0.75rem;
+  min-width: 50px;
+  padding: 0.28rem 0.8rem;
 }
 
 .quarter-pill {
-  min-width: 34px;
-  padding: 0.25rem 0.5rem;
+  min-width: 36px;
+  padding: 0.28rem 0.55rem;
 }
 
 .month-pill {
-  min-width: 38px;
-  padding: 0.25rem 0.55rem;
+  min-width: 40px;
+  padding: 0.28rem 0.6rem;
 }
 
-/* MES ACTIVO (en la imagen el mes seleccionado tiene un verde bosque sólido) */
+/* MES ACTIVO (TEAL / PETRÓLEO DISTINTIVO) */
 .month-pill.pill-active {
-  background: #166534 !important;
-  border-color: #14532d !important;
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important;
+  border-color: #2dd4bf !important;
   color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(13, 148, 136, 0.45);
 }
 
 /* FILA DE DÍAS */
@@ -204,31 +212,33 @@
   gap: 0.25rem;
   flex-wrap: nowrap;
   overflow-x: auto;
-  padding: 2px 0 4px;
+  padding: 3px 0 5px;
   width: 100%;
 }
 
 .day-pill {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  width: 29px;
+  height: 29px;
+  min-width: 29px;
   padding: 0;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  border-radius: 5px;
+  border-radius: 6px;
   text-align: center;
 }
 
-/* Scrollbar estilizada para días si sobrepasa la pantalla */
+/* SCROLLBAR ESTILIZADA PARA DÍAS */
 .days-group::-webkit-scrollbar {
-  height: 4px;
+  height: 5px;
 }
 .days-group::-webkit-scrollbar-track {
-  background: #e2e8f0;
-  border-radius: 2px;
+  background: rgba(8, 30, 48, 0.6);
+  border-radius: 3px;
 }
 .days-group::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 2px;
+  background: rgba(148, 210, 240, 0.25);
+  border-radius: 3px;
 }
-
+.days-group::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 210, 240, 0.45);
+}
