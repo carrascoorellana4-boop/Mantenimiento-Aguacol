@@ -962,7 +962,34 @@ export const JERARQUIA_APROBADA = [
         estado: 'operativo',
         criticidad: 'Alta',
         ubicacion: 'Galpón de Producción - Línea 2',
-        hijos: []
+        hijos: [
+          {
+            id: '891300a0-7fe5-4c78-9311-c8ce48cebd15',
+            codigo: 'AGL-JJV-PROD-L02-HOR',
+            nombre: 'Horno de producción',
+            area: 'Producción / JJV',
+            tipo: 'hijo',
+            padreCodigo: 'JJV Línea 2',
+            padreNombre: 'JJV Línea 2',
+            padreId: 'act-jjv-2',
+            estado: 'operativo',
+            criticidad: 'Alta',
+            descripcion: 'Horno perteneciente estructuralmente a JJV Línea 2'
+          },
+          {
+            id: 'f1eb3140-e315-4162-b704-ec44aee7a2b2',
+            codigo: 'AGL-JJV-PROD-L02-SELL',
+            nombre: 'Selladora de producción',
+            area: 'Producción / JJV',
+            tipo: 'hijo',
+            padreCodigo: 'JJV Línea 2',
+            padreNombre: 'JJV Línea 2',
+            padreId: 'act-jjv-2',
+            estado: 'operativo',
+            criticidad: 'Media',
+            descripcion: 'Selladora perteneciente estructuralmente a JJV Línea 2'
+          }
+        ]
       },
       {
         id: 'act-jjv-3',
@@ -976,8 +1003,8 @@ export const JERARQUIA_APROBADA = [
         ubicacion: 'Galpón de Producción - Línea 3',
         hijos: [
           {
-            id: 'act-horno-produccion',
-            codigo: null,
+            id: 'f821566e-2d0b-4c8d-9104-a7074dc21d80',
+            codigo: 'AGL-JJV-PROD-L03-HOR',
             nombre: 'Horno de producción',
             area: 'Producción / JJV',
             tipo: 'hijo',
@@ -987,6 +1014,19 @@ export const JERARQUIA_APROBADA = [
             estado: 'operativo',
             criticidad: 'Alta',
             descripcion: 'Horno perteneciente estructuralmente a JJV Línea 3'
+          },
+          {
+            id: 'c25f754b-d124-47bf-af3a-576a6c149483',
+            codigo: 'AGL-JJV-PROD-L03-SELL',
+            nombre: 'Selladora de producción',
+            area: 'Producción / JJV',
+            tipo: 'hijo',
+            padreCodigo: 'JJV Línea 3',
+            padreNombre: 'JJV Línea 3',
+            padreId: 'act-jjv-3',
+            estado: 'operativo',
+            criticidad: 'Media',
+            descripcion: 'Selladora perteneciente estructuralmente a JJV Línea 3'
           }
         ]
       },
