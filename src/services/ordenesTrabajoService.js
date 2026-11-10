@@ -518,6 +518,9 @@ export const createOrdenTrabajo = async (payload, equiposList = [], session = nu
       broadcastOtSyncEvent('INSERT', newOt)
       return newOt
     }
+    if (error.code === '23505' || error.message?.includes('idéntica')) {
+      throw new Error(error.message || 'Ya existe una orden de trabajo idéntica activa registrada en el sistema.')
+    }
     throw new Error(error.message)
   }
 

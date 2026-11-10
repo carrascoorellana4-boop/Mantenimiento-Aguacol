@@ -281,21 +281,32 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
         {/* PANTALLA DE ÉXITO */}
         {submitted ? (
           <div className="solicitud-success-box">
-            <div className="solicitud-success-icon-wrap">
-              <Icon n="check" size="2.5rem" />
+            <div className={`solicitud-success-icon-wrap ${createdOt?.ya_existia ? 'icon-existing' : ''}`}>
+              <Icon n={createdOt?.ya_existia ? 'check' : 'check'} size="2.5rem" />
             </div>
-            <h2 className="solicitud-success-heading">¡Solicitud Ingresada Exitosamente!</h2>
+            <h2 className="solicitud-success-heading">
+              {createdOt?.ya_existia ? 'Solicitud Ya Registrada en Sistema' : '¡Solicitud Ingresada Exitosamente!'}
+            </h2>
             <p className="solicitud-success-subtext">
-              El equipo de mantenimiento ha recibido tu reporte en tiempo real y fue registrado en el sistema.
+              {createdOt?.ya_existia
+                ? 'Ya existía una solicitud idéntica en estado activo. Se mantuvo la orden existente para evitar duplicidad de trabajo.'
+                : 'El equipo de mantenimiento ha recibido tu reporte en tiempo real y fue registrado en el sistema.'}
             </p>
 
             <div className="solicitud-folio-card">
-              <span className="solicitud-folio-label">Orden de Trabajo Generada</span>
+              <span className="solicitud-folio-label">
+                {createdOt?.ya_existia ? 'Orden de Trabajo Activa en Curso' : 'Orden de Trabajo Generada'}
+              </span>
               <div className="solicitud-folio-code">
                 {createdOt?.codigo_ot || (createdOt?.numero_ot ? `OT N° ${createdOt.numero_ot}` : 'OT GENERADA')}
               </div>
               <span className="solicitud-folio-status">
                 <span className="status-dot"></span> Estado: Pendiente de Atención
+                {createdOt?.ya_existia && (
+                  <span style={{ color: '#38bdf8', marginLeft: '0.5rem', fontWeight: 700 }}>
+                    • Sin duplicar
+                  </span>
+                )}
               </span>
             </div>
 
