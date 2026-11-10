@@ -322,6 +322,18 @@
 }
 
 /* Botón y Preview de Foto */
+.solicitud-foto-buttons-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .solicitud-foto-buttons-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .solicitud-btn-foto {
   display: inline-flex;
   align-items: center;
@@ -342,6 +354,17 @@
   background: rgba(14, 165, 233, 0.15);
   border-color: #38bdf8;
   color: #7dd3fc;
+}
+
+.solicitud-btn-archivo {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #cbd5e1;
+}
+
+.solicitud-btn-archivo:hover {
+  background: rgba(148, 163, 184, 0.15);
+  border-color: #38bdf8;
+  color: #38bdf8;
 }
 
 .solicitud-foto-preview-wrap {

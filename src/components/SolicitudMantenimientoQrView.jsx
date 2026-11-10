@@ -98,6 +98,7 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
   const [serverError, setServerError] = useState('')
 
   const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
 
   // Obtener las líneas disponibles según el área seleccionada
   const activeAreaObj = AREAS_CATALOGO.find((a) => a.id === area) || AREAS_CATALOGO[0]
@@ -171,6 +172,9 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
     setFotoBase64(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = ''
     }
   }
 
@@ -522,8 +526,9 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
             <div className="solicitud-field-group">
               <label className="solicitud-label">Foto <span className="optional-tag">(Opcional)</span></label>
 
+              {/* Opción 1: Abrir cámara directa en móviles */}
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
@@ -532,16 +537,40 @@ export default function SolicitudMantenimientoQrView({ onBackToApp = null }) {
                 disabled={loading}
               />
 
+              {/* Opción 2: Elegir de archivos o galería */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                style={{ display: 'none' }}
+                onChange={handleFotoChange}
+                disabled={loading}
+              />
+
               {!fotoPreview ? (
-                <button
-                  type="button"
-                  className="solicitud-btn-foto"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
-                >
-                  <Icon n="camera" />
-                  <span>+ Agregar foto</span>
-                </button>
+                <div className="solicitud-foto-buttons-grid">
+                  <button
+                    type="button"
+                    className="solicitud-btn-foto"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={loading}
+                    title="Tomar foto con la cámara del dispositivo"
+                  >
+                    <Icon n="camera" />
+                    <span>Tomar foto</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="solicitud-btn-foto solicitud-btn-archivo"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    title="Seleccionar foto de galería o archivos"
+                  >
+                    <Icon n="upload" />
+                    <span>Subir de archivos</span>
+                  </button>
+                </div>
               ) : (
                 <div className="solicitud-foto-preview-wrap">
                   <div className="foto-thumbnail-box">
