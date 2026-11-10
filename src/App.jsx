@@ -3098,33 +3098,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
-                    </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
-                  </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
-
                 {/* 2. ÁRBOL DE ACTIVOS */}
                 <div
                   className="home-module-card"
@@ -3148,33 +3121,6 @@ function App() {
                   <div className="home-card-footer">
                     <span className="home-card-action">
                       Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
-                    </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
-                  </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
                     </span>
                   </div>
                 </div>
@@ -3206,33 +3152,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
-                    </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
-                  </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
-
                 {/* 4. COMPRAS */}
                 <div
                   className="home-module-card"
@@ -3260,33 +3179,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
-                    </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
-                  </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
-
                 {/* 5. MANTENIMIENTO PREVENTIVO */}
                 <div
                   className="home-module-card card-active-module"
@@ -3310,33 +3202,6 @@ function App() {
                   <div className="home-card-footer">
                     <span className="home-card-action">
                       Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
-                    </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
-                  </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
                     </span>
                   </div>
                 </div>
