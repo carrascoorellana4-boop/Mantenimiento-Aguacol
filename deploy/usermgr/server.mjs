@@ -316,6 +316,21 @@ http.createServer(async (req, res) => {
       }
 
       const result = await rpcRes.json()
+
+      // Despachar notificación automática por correo si es una OT nueva (no duplicada)
+      if (result && result.ok && !result.ya_existia) {
+        notificarSolicitudEmail({
+          codigo_ot: result.codigo_ot || (result.numero_ot ? `OT-${String(result.numero_ot).padStart(6, '0')}` : 'OT NUEVA'),
+          area,
+          solicitante: cleanSolicitante,
+          linea: cleanLinea,
+          equipo: cleanEquipo,
+          descripcion: cleanDesc,
+          lineaDetenida,
+          fotoUrl
+        }).catch(err => console.warn('[notificaciones] Error al despachar correo:', err.message))
+      }
+
       return send(201, result)
     }
 
@@ -466,3 +481,201 @@ async function asegurarOperadoresBase() {
 
 // Ejecutar seed al arrancar el servidor
 setTimeout(asegurarOperadoresBase, 1500)
+
+// -------------------------------------------------------------
+// CONFIGURACIÓN DINÁMICA DEL SISTEMA (POSTGRESQL / POSTGREST)
+// -------------------------------------------------------------
+const cachedConfig = {}
+let lastConfigFetch = 0
+
+async function obtenerParametroConfig(clave, valorPorDefecto = '') {
+  if (process.env[clave.toUpperCase()]) {
+    return process.env[clave.toUpperCase()]
+  }
+
+  const ahora = Date.now()
+  if (ahora - lastConfigFetch > 60000 || !cachedConfig[clave]) {
+    try {
+      const pgrstUrl = process.env.PGRST_URL || 'http://127.0.0.1:3100'
+      const r = await fetch(`${pgrstUrl}/rpc/obtener_sistema_config`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ p_clave: clave })
+      })
+      if (r.ok) {
+        const val = await r.json()
+        if (val) {
+          cachedConfig[clave] = val
+          lastConfigFetch = ahora
+        }
+      }
+    } catch (e) {
+      console.warn(`[config] Error al obtener ${clave}:`, e.message)
+    }
+  }
+
+  return cachedConfig[clave] || valorPorDefecto
+}
+
+// -------------------------------------------------------------
+// NOTIFICACIONES AUTOMÁTICAS POR CORREO (RESEND API)
+// -------------------------------------------------------------
+async function notificarSolicitudEmail(ot) {
+  const apiKey = await obtenerParametroConfig('resend_api_key')
+  if (!apiKey || apiKey === 'CONFIGURAR_API_KEY') {
+    console.warn('[notificaciones] No se ha configurado la API Key de Resend en sistema_config.')
+    return
+  }
+
+  const destinatarioPrincipal = await obtenerParametroConfig('notif_email_to', 'acarrasco@aguacol.cl')
+  const destinatarioRespaldo = await obtenerParametroConfig('notif_email_fallback', 'carrascoorellana4@gmail.com')
+
+  const subject = ot.lineaDetenida
+    ? `🚨 [URGENTE - LÍNEA DETENIDA] Solicitud ${ot.codigo_ot} - ${ot.linea}`
+    : `🔔 [Nueva Solicitud] ${ot.codigo_ot} - ${ot.linea}`
+
+  const urgenciaBadge = ot.lineaDetenida
+    ? `<div style="background-color: #ef4444; color: #ffffff; padding: 7px 16px; border-radius: 6px; font-weight: 800; font-size: 13px; display: inline-block; letter-spacing: 0.05em; text-transform: uppercase;">
+        🚨 LÍNEA DETENIDA (PARADA POR FALLA)
+       </div>`
+    : `<div style="background-color: #10b981; color: #ffffff; padding: 7px 16px; border-radius: 6px; font-weight: 700; font-size: 13px; display: inline-block;">
+        🟢 LÍNEA EN OPERACIÓN (AVISO PREVENTIVO)
+       </div>`
+
+  const fotoHtml = ot.fotoUrl
+    ? `
+      <div style="margin-top: 20px; padding: 14px; background-color: #1e293b; border-radius: 8px; border: 1px solid #334155;">
+        <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Fotografía Adjunta:</p>
+        <a href="https://mantenimiento.aguacol.cl${ot.fotoUrl}" target="_blank" style="color: #38bdf8; text-decoration: underline; font-size: 14px; font-weight: 600;">
+          Ver fotografía adjunta en el sistema &rarr;
+        </a>
+      </div>
+    `
+    : ''
+
+  const fechaStr = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="margin: 0; padding: 24px; background-color: #0b1329; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.5);">
+        <tr>
+          <td style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 22px 28px; text-align: left;">
+            <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #bae6fd;">
+              AGUACOL &bull; SISTEMA DE MANTENIMIENTO
+            </div>
+            <h1 style="margin: 6px 0 0 0; font-size: 22px; font-weight: 700; color: #ffffff;">
+              Nueva Solicitud de Mantenimiento
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 24px 28px;">
+            <div style="margin-bottom: 20px;">
+              ${urgenciaBadge}
+            </div>
+
+            <div style="background-color: #1e293b; border-left: 4px solid #38bdf8; padding: 14px 18px; border-radius: 4px; margin-bottom: 20px;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; display: block;">Orden de Trabajo Generada</span>
+              <strong style="font-size: 20px; color: #38bdf8; letter-spacing: 0.05em;">${ot.codigo_ot}</strong>
+              <span style="font-size: 12px; color: #64748b; margin-left: 12px;">(${fechaStr})</span>
+            </div>
+
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 20px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #94a3b8; font-size: 13px; width: 35%;"><strong>Área:</strong></td>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #f8fafc; font-size: 14px;">${ot.area}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #94a3b8; font-size: 13px;"><strong>Línea / Sector:</strong></td>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #38bdf8; font-size: 14px; font-weight: 700;">${ot.linea}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #94a3b8; font-size: 13px;"><strong>Equipo / Componente:</strong></td>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #f8fafc; font-size: 14px;">${ot.equipo || 'No especificado'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #94a3b8; font-size: 13px;"><strong>Solicitante:</strong></td>
+                <td style="padding: 10px 0; border-bottom: 1px solid #1e293b; color: #f8fafc; font-size: 14px;">${ot.solicitante}</td>
+              </tr>
+            </table>
+
+            <div style="background-color: #0b1329; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; display: block; margin-bottom: 8px;">
+                Descripción del Problema / Trabajo Requerido:
+              </span>
+              <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #f1f5f9; white-space: pre-wrap;">${ot.descripcion}</p>
+            </div>
+
+            ${fotoHtml}
+
+            <div style="text-align: center; margin: 28px 0 10px 0;">
+              <a href="https://mantenimiento.aguacol.cl" target="_blank" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);">
+                Acceder al Sistema de Mantenimiento &rarr;
+              </a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #090e17; padding: 16px 28px; text-align: center; border-top: 1px solid #1e293b;">
+            <p style="margin: 0; font-size: 11px; color: #64748b;">
+              Notificación automática del Sistema de Mantenimiento AGUACOL.<br>
+              Generado en tiempo real desde <a href="https://mantenimiento.aguacol.cl" style="color: #38bdf8; text-decoration: none;">mantenimiento.aguacol.cl</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `
+
+  let target = destinatarioPrincipal
+  try {
+    let resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Mantenimiento AGUACOL <onboarding@resend.dev>',
+        to: [target],
+        subject,
+        html
+      })
+    })
+
+    // Si Resend limita por modo prueba (403), reenviar automáticamente a la cuenta registrada
+    if (resp.status === 403 && destinatarioRespaldo && target !== destinatarioRespaldo) {
+      console.warn(`[notificaciones] Resend no permitió enviar a ${target} (modo prueba sin dominio). Reenviando a ${destinatarioRespaldo}...`)
+      target = destinatarioRespaldo
+      resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Mantenimiento AGUACOL <onboarding@resend.dev>',
+          to: [target],
+          subject,
+          html
+        })
+      })
+    }
+
+    if (resp.ok) {
+      console.log(`[notificaciones] Correo enviado exitosamente a ${target} para orden ${ot.codigo_ot}`)
+    } else {
+      const errBody = await resp.json().catch(() => ({}))
+      console.warn(`[notificaciones] Error Resend (${resp.status}):`, errBody)
+    }
+  } catch (err) {
+    console.warn('[notificaciones] Error de red al contactar Resend API:', err.message)
+  }
+}
