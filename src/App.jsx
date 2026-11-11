@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabase'
 import * as XLSX from 'xlsx'
 import { CLASIFICACIONES_APROBADAS_REGISTRO } from './config/maestroJerarquia'
