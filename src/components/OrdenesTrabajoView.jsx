@@ -13,6 +13,7 @@ import {
   updateOrdenTrabajoDetails,
   fetchOtHistorialEstados,
   formatDuracionTrabajo,
+  formatMinutosLegible,
   fetchRepuestosDeOt,
   consumirRepuestoEnOt
 } from '../services/ordenesTrabajoService'
@@ -135,15 +136,19 @@ export default function OrdenesTrabajoView({
   const [loadingRepuestos, setLoadingRepuestos] = useState(false)
   const [fichaCondicionLinea, setFichaCondicionLinea] = useState('')
   const [fichaUtilizoRepuestos, setFichaUtilizoRepuestos] = useState('no')
+  const [fichaTiempoHoras, setFichaTiempoHoras] = useState('')
+  const [fichaTiempoMinutos, setFichaTiempoMinutos] = useState('')
   const [repuestoSearchQuery, setRepuestoSearchQuery] = useState('')
   const [selectedRepuestoId, setSelectedRepuestoId] = useState('')
   const [consumoCantidad, setConsumoCantidad] = useState('')
   const [consumoError, setConsumoError] = useState('')
   const [consumoSubmitting, setConsumoSubmitting] = useState(false)
 
-  // Condición de línea y repuestos en Modal Finalizar
+  // Condición de línea, tiempo detenido y repuestos en Modal Finalizar
   const [finalizarCondicionLinea, setFinalizarCondicionLinea] = useState('')
   const [finalizarUtilizoRepuestos, setFinalizarUtilizoRepuestos] = useState('no')
+  const [finalizarTiempoHoras, setFinalizarTiempoHoras] = useState('')
+  const [finalizarTiempoMinutos, setFinalizarTiempoMinutos] = useState('')
 
 
   // Sincronizar campos del formulario de la Ficha cuando cambia la OT seleccionada o sus datos
@@ -156,6 +161,14 @@ export default function OrdenesTrabajoView({
       setFichaPrioridad(selectedOt.prioridad || 'Media')
       setFichaCondicionLinea(selectedOt.condicion_linea || '')
       setFichaUtilizoRepuestos(selectedOt.utilizo_repuestos ? 'si' : 'no')
+      if (selectedOt.tiempo_detencion_minutos !== undefined && selectedOt.tiempo_detencion_minutos !== null) {
+        const tot = Number(selectedOt.tiempo_detencion_minutos) || 0
+        setFichaTiempoHoras(tot >= 60 ? String(Math.floor(tot / 60)) : '')
+        setFichaTiempoMinutos(tot > 0 ? String(tot % 60) : '')
+      } else {
+        setFichaTiempoHoras('')
+        setFichaTiempoMinutos('')
+      }
       setRepuestoSearchQuery('')
       setSelectedRepuestoId('')
       setConsumoCantidad('')
@@ -205,7 +218,10 @@ export default function OrdenesTrabajoView({
     prioridad: 'Media',
     tipo_intervencion: 'Correctiva',
     es_falla: true,
-    tipo_falla: 'Mecánica'
+    tipo_falla: 'Mecánica',
+    condicion_linea: 'Línea produciendo',
+    tiempo_detencion_horas: '',
+    tiempo_detencion_minutos: ''
   })
   const [nuevaOtError, setNuevaOtError] = useState('')
   const [nuevaOtSubmitting, setNuevaOtSubmitting] = useState(false)
@@ -451,12 +467,26 @@ export default function OrdenesTrabajoView({
       setFinalizarTecnico(
         source === 'ficha' && fichaTecnico.trim() ? fichaTecnico : ot.tecnico || ''
       )
-      setFinalizarCondicionLinea(
-        source === 'ficha' && fichaCondicionLinea ? fichaCondicionLinea : ot.condicion_linea || ''
-      )
+      const condL = source === 'ficha' && fichaCondicionLinea ? fichaCondicionLinea : ot.condicion_linea || ''
+      setFinalizarCondicionLinea(condL)
       setFinalizarUtilizoRepuestos(
         source === 'ficha' ? fichaUtilizoRepuestos : (ot.utilizo_repuestos ? 'si' : 'no')
       )
+
+      if (source === 'ficha' && (fichaTiempoHoras || fichaTiempoMinutos)) {
+        setFinalizarTiempoHoras(fichaTiempoHoras)
+        setFinalizarTiempoMinutos(fichaTiempoMinutos)
+      } else if (ot.tiempo_detencion_minutos > 0) {
+        setFinalizarTiempoHoras(String(Math.floor(ot.tiempo_detencion_minutos / 60) || ''))
+        setFinalizarTiempoMinutos(String(ot.tiempo_detencion_minutos % 60 || ''))
+      } else if (condL === 'Línea detenida' && (ot.fecha_hora_inicio_trabajo || ot.fecha_inicio)) {
+        const elMins = Math.max(0, Math.round((Date.now() - new Date(ot.fecha_hora_inicio_trabajo || ot.fecha_inicio).getTime()) / 60000))
+        setFinalizarTiempoHoras(elMins >= 60 ? String(Math.floor(elMins / 60)) : '')
+        setFinalizarTiempoMinutos(elMins > 0 ? String(elMins % 60) : '')
+      } else {
+        setFinalizarTiempoHoras('')
+        setFinalizarTiempoMinutos('')
+      }
       setFinalizarError('')
       return
     }
@@ -513,6 +543,13 @@ export default function OrdenesTrabajoView({
       return
     }
 
+    let totalMinutosDetencion = null
+    if (finalizarCondicionLinea === 'Línea detenida') {
+      const h = parseInt(finalizarTiempoHoras, 10) || 0
+      const m = parseInt(finalizarTiempoMinutos, 10) || 0
+      totalMinutosDetencion = Math.max(0, h * 60 + m)
+    }
+
     setFinalizarError('')
     setFinalizarSubmitting(true)
     const targetOt = finalizarModalOt
@@ -524,16 +561,16 @@ export default function OrdenesTrabajoView({
       trabajo_pendiente: (finalizarTrabajoPendiente || '').trim() || null,
       tecnico: trimmedTecnico,
       condicion_linea: finalizarCondicionLinea,
+      tiempo_detencion_minutos: totalMinutosDetencion,
       utilizo_repuestos: finalizarUtilizoRepuestos === 'si',
       fecha_hora_fin_trabajo: nowIso,
-      comentario: `OT finalizada. Condición: ${finalizarCondicionLinea}. Solución: ${trimmedSolucion}`
+      comentario: `OT finalizada. Condición: ${finalizarCondicionLinea}${totalMinutosDetencion > 0 ? ` (${formatMinutosLegible(totalMinutosDetencion)} detenida)` : ''}. Solución: ${trimmedSolucion}`
     })
 
-    const duracion = formatDuracionTrabajo(
-      targetOt.fecha_hora_inicio_trabajo || targetOt.fecha_inicio,
-      nowIso
-    )
-    showToast(`OT ${formatCodigoOt(targetOt)} finalizada. Duración registrada: ${duracion}`, 'success')
+    const durText = totalMinutosDetencion > 0
+      ? `Tiempo línea detenida: ${formatMinutosLegible(totalMinutosDetencion)}`
+      : `Duración registrada: ${formatDuracionTrabajo(targetOt.fecha_hora_inicio_trabajo || targetOt.fecha_inicio, nowIso)}`
+    showToast(`OT ${formatCodigoOt(targetOt)} finalizada. ${durText}`, 'success')
 
     setFinalizarSubmitting(false)
   }
@@ -643,22 +680,37 @@ export default function OrdenesTrabajoView({
           setFichaValidationError('Indicó que se utilizaron repuestos. Debe registrar al menos un repuesto consumido a continuación.')
           return
         }
+        let totalFichaMinutos = null
+        if (fichaCondicionLinea === 'Línea detenida') {
+          const h = parseInt(fichaTiempoHoras, 10) || 0
+          const m = parseInt(fichaTiempoMinutos, 10) || 0
+          totalFichaMinutos = Math.max(0, h * 60 + m)
+        }
         const nowFinIso = new Date().toISOString()
         const ok = await executeStatusChangeWithOptimisticUi(selectedOt, 'Finalizada', {
           solucion_definitiva: fichaSolucion.trim(),
           trabajo_pendiente: (fichaTrabajoPendiente || '').trim() || null,
           tecnico: trimmedTec,
           condicion_linea: fichaCondicionLinea,
+          tiempo_detencion_minutos: totalFichaMinutos,
           utilizo_repuestos: fichaUtilizoRepuestos === 'si',
           fecha_hora_fin_trabajo: nowFinIso,
-          comentario: `Finalizada desde Ficha. Condición: ${fichaCondicionLinea}. Solución: ${fichaSolucion.trim()}`
+          comentario: `Finalizada desde Ficha. Condición: ${fichaCondicionLinea}${totalFichaMinutos > 0 ? ` (${formatMinutosLegible(totalFichaMinutos)} detenida)` : ''}. Solución: ${fichaSolucion.trim()}`
         })
         if (ok) {
           setFichaPendingFinalizarMode(false)
-          const dur = formatDuracionTrabajo(selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio, nowFinIso)
-          showToast(`OT ${formatCodigoOt(selectedOt)} finalizada. Duración total: ${dur}`, 'success')
+          const dur = totalFichaMinutos > 0
+            ? `Tiempo línea detenida: ${formatMinutosLegible(totalFichaMinutos)}`
+            : `Duración total: ${formatDuracionTrabajo(selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio, nowFinIso)}`
+          showToast(`OT ${formatCodigoOt(selectedOt)} finalizada. ${dur}`, 'success')
         }
       } else {
+        let totalFichaMinutos = null
+        if (fichaCondicionLinea === 'Línea detenida') {
+          const h = parseInt(fichaTiempoHoras, 10) || 0
+          const m = parseInt(fichaTiempoMinutos, 10) || 0
+          totalFichaMinutos = Math.max(0, h * 60 + m)
+        }
         const updated = await updateOrdenTrabajoDetails(
           selectedOt.id,
           {
@@ -668,6 +720,7 @@ export default function OrdenesTrabajoView({
             solucion_definitiva: fichaSolucion,
             trabajo_pendiente: fichaTrabajoPendiente,
             condicion_linea: fichaCondicionLinea || null,
+            tiempo_detencion_minutos: totalFichaMinutos,
             utilizo_repuestos: fichaUtilizoRepuestos === 'si'
           },
           session,
@@ -699,7 +752,20 @@ export default function OrdenesTrabajoView({
     setNuevaOtSubmitting(true)
 
     try {
-      const created = await createOrdenTrabajo(nuevaOtForm, equiposList, session)
+      let totalMinutos = null
+      if (nuevaOtForm.condicion_linea === 'Línea detenida') {
+        const h = parseInt(nuevaOtForm.tiempo_detencion_horas, 10) || 0
+        const m = parseInt(nuevaOtForm.tiempo_detencion_minutos, 10) || 0
+        totalMinutos = Math.max(0, h * 60 + m)
+      }
+      const created = await createOrdenTrabajo(
+        {
+          ...nuevaOtForm,
+          tiempo_detencion_minutos: totalMinutos
+        },
+        equiposList,
+        session
+      )
       setOrdenesList((prev) => {
         if (prev.some((x) => x.id === created.id)) return prev
         return [created, ...prev]
@@ -714,7 +780,10 @@ export default function OrdenesTrabajoView({
         prioridad: 'Media',
         tipo_intervencion: 'Correctiva',
         es_falla: true,
-        tipo_falla: 'Mecánica'
+        tipo_falla: 'Mecánica',
+        condicion_linea: 'Línea produciendo',
+        tiempo_detencion_horas: '',
+        tiempo_detencion_minutos: ''
       })
       setMobileActiveTab('Pendiente')
       showToast(`${formatCodigoOt(created)} creada en Pendientes`, 'success')
@@ -865,8 +934,15 @@ export default function OrdenesTrabajoView({
           </div>
         )}
 
-        {/* Duración total si está Finalizada */}
-        {ot.estado === 'Finalizada' &&
+        {/* Tiempo detenido / Duración de trabajo */}
+        {ot.tiempo_detencion_minutos > 0 ? (
+          <div>
+            <span className="ot-card-duracion-badge ot-badge-detencion">
+              🛑 Detenida: {formatMinutosLegible(ot.tiempo_detencion_minutos)}
+            </span>
+          </div>
+        ) : (
+          ot.estado === 'Finalizada' &&
           (ot.fecha_hora_inicio_trabajo || ot.fecha_inicio) &&
           (ot.fecha_hora_fin_trabajo || ot.fecha_finalizacion) && (
             <div>
@@ -877,7 +953,8 @@ export default function OrdenesTrabajoView({
                 )}
               </span>
             </div>
-          )}
+          )
+        )}
 
         {/* Indicador de repuestos utilizados */}
         {ot.utilizo_repuestos && (
@@ -1284,7 +1361,12 @@ export default function OrdenesTrabajoView({
                             Solicitante: <strong>{selectedOt.solicitante_nombre} ({selectedOt.solicitante_area || selectedOt.area || 'Planta'})</strong>
                           </span>
                         )}
-                        {selectedOt.estado === 'Finalizada' &&
+                        {selectedOt.tiempo_detencion_minutos > 0 ? (
+                          <span className="ot-card-duracion-badge ot-badge-detencion">
+                            🛑 Línea detenida: {formatMinutosLegible(selectedOt.tiempo_detencion_minutos)}
+                          </span>
+                        ) : (
+                          selectedOt.estado === 'Finalizada' &&
                           (selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio) &&
                           (selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion) && (
                             <span className="ot-card-duracion-badge">
@@ -1293,7 +1375,8 @@ export default function OrdenesTrabajoView({
                                 selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion
                               )}
                             </span>
-                          )}
+                          )
+                        )}
                       </div>
                       <h2 className="modal-title" style={{ marginTop: '0.35rem' }}>
                         {equipoNombre} — <span style={{ fontWeight: 500 }}>{ubicacionDisplay}</span>
@@ -1467,12 +1550,18 @@ export default function OrdenesTrabajoView({
                         </strong>
                       </div>
                       <div className="ot-ficha-date-item">
-                        <span className="ot-date-lbl">Duración calculada</span>
+                        <span className="ot-date-lbl">
+                          {selectedOt.tiempo_detencion_minutos > 0
+                            ? 'Tiempo línea detenida'
+                            : 'Duración calculada'}
+                        </span>
                         <strong className="ot-date-val">
-                          {formatDuracionTrabajo(
-                            selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio,
-                            selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion
-                          )}
+                          {selectedOt.tiempo_detencion_minutos > 0
+                            ? `🛑 ${formatMinutosLegible(selectedOt.tiempo_detencion_minutos)}`
+                            : formatDuracionTrabajo(
+                                selectedOt.fecha_hora_inicio_trabajo || selectedOt.fecha_inicio,
+                                selectedOt.fecha_hora_fin_trabajo || selectedOt.fecha_finalizacion
+                              )}
                         </strong>
                       </div>
                     </div>
@@ -1602,6 +1691,53 @@ export default function OrdenesTrabajoView({
                               </div>
                             </label>
                           </div>
+
+                          {fichaCondicionLinea === 'Línea detenida' && (
+                            <div className="ot-tiempo-detencion-box">
+                              <div className="ot-tiempo-detencion-header">
+                                <span className="ot-tiempo-detencion-icon">⏱️</span>
+                                <div>
+                                  <label className="form-label" style={{ marginBottom: 0 }}>
+                                    Tiempo que estuvo detenida la línea <span className="required-mark">*</span>
+                                  </label>
+                                  <span className="ot-tiempo-detencion-sub">
+                                    Indique las horas y minutos reales que la línea estuvo parada
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="ot-tiempo-inputs-row">
+                                <div className="ot-tiempo-input-group">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="999"
+                                    className="form-input ot-tiempo-input"
+                                    placeholder="0"
+                                    value={fichaTiempoHoras}
+                                    onChange={(e) => setFichaTiempoHoras(e.target.value)}
+                                  />
+                                  <span className="ot-tiempo-unit">hrs</span>
+                                </div>
+                                <div className="ot-tiempo-input-group">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="59"
+                                    className="form-input ot-tiempo-input"
+                                    placeholder="0"
+                                    value={fichaTiempoMinutos}
+                                    onChange={(e) => setFichaTiempoMinutos(e.target.value)}
+                                  />
+                                  <span className="ot-tiempo-unit">min</span>
+                                </div>
+                                {(Number(fichaTiempoHoras) > 0 || Number(fichaTiempoMinutos) > 0) && (
+                                  <span className="ot-tiempo-total-badge">
+                                    Total: {formatMinutosLegible((Number(fichaTiempoHoras) || 0) * 60 + (Number(fichaTiempoMinutos) || 0))} perdidos
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* SECCIÓN DE REPUESTOS (#10) */}
@@ -2011,6 +2147,53 @@ export default function OrdenesTrabajoView({
                             </div>
                           </label>
                         </div>
+
+                        {finalizarCondicionLinea === 'Línea detenida' && (
+                          <div className="ot-tiempo-detencion-box">
+                            <div className="ot-tiempo-detencion-header">
+                              <span className="ot-tiempo-detencion-icon">⏱️</span>
+                              <div>
+                                <label className="form-label" style={{ marginBottom: 0 }}>
+                                  Tiempo que estuvo detenida la línea <span className="required-mark">*</span>
+                                </label>
+                                <span className="ot-tiempo-detencion-sub">
+                                  Indique las horas y minutos reales que la línea estuvo parada
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ot-tiempo-inputs-row">
+                              <div className="ot-tiempo-input-group">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="999"
+                                  className="form-input ot-tiempo-input"
+                                  placeholder="0"
+                                  value={finalizarTiempoHoras}
+                                  onChange={(e) => setFinalizarTiempoHoras(e.target.value)}
+                                />
+                                <span className="ot-tiempo-unit">hrs</span>
+                              </div>
+                              <div className="ot-tiempo-input-group">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="59"
+                                  className="form-input ot-tiempo-input"
+                                  placeholder="0"
+                                  value={finalizarTiempoMinutos}
+                                  onChange={(e) => setFinalizarTiempoMinutos(e.target.value)}
+                                />
+                                <span className="ot-tiempo-unit">min</span>
+                              </div>
+                              {(Number(finalizarTiempoHoras) > 0 || Number(finalizarTiempoMinutos) > 0) && (
+                                <span className="ot-tiempo-total-badge">
+                                  Total: {formatMinutosLegible((Number(finalizarTiempoHoras) || 0) * 60 + (Number(finalizarTiempoMinutos) || 0))} perdidos
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Repuestos utilizados */}
@@ -2383,6 +2566,105 @@ export default function OrdenesTrabajoView({
                         setNuevaOtForm((prev) => ({ ...prev, trabajo: e.target.value }))
                       }
                     />
+                  </div>
+
+                  {/* Condición de la línea */}
+                  <div className="form-group full-width">
+                    <label className="form-label">
+                      Condición de la línea
+                    </label>
+                    <div className="ot-condicion-options-row">
+                      <label
+                        className={`ot-condicion-opt-card ${
+                          nuevaOtForm.condicion_linea === 'Línea produciendo' ? 'selected-produciendo' : ''
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="nueva_ot_condicion"
+                          value="Línea produciendo"
+                          checked={nuevaOtForm.condicion_linea === 'Línea produciendo'}
+                          onChange={(e) =>
+                            setNuevaOtForm((prev) => ({ ...prev, condicion_linea: e.target.value }))
+                          }
+                        />
+                        <div>
+                          <div className="ot-condicion-opt-title">⚡ Línea produciendo</div>
+                          <div className="ot-condicion-opt-subtitle">Equipo en marcha</div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`ot-condicion-opt-card ${
+                          nuevaOtForm.condicion_linea === 'Línea detenida' ? 'selected-detenida' : ''
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="nueva_ot_condicion"
+                          value="Línea detenida"
+                          checked={nuevaOtForm.condicion_linea === 'Línea detenida'}
+                          onChange={(e) =>
+                            setNuevaOtForm((prev) => ({ ...prev, condicion_linea: e.target.value }))
+                          }
+                        />
+                        <div>
+                          <div className="ot-condicion-opt-title">🛑 Línea detenida</div>
+                          <div className="ot-condicion-opt-subtitle">Parada productiva</div>
+                        </div>
+                      </label>
+                    </div>
+
+                    {nuevaOtForm.condicion_linea === 'Línea detenida' && (
+                      <div className="ot-tiempo-detencion-box">
+                        <div className="ot-tiempo-detencion-header">
+                          <span className="ot-tiempo-detencion-icon">⏱️</span>
+                          <div>
+                            <label className="form-label" style={{ marginBottom: 0 }}>
+                              Tiempo que estuvo detenida la línea (Opcional)
+                            </label>
+                            <span className="ot-tiempo-detencion-sub">
+                              Indique las horas y minutos perdidos si ya se conocen
+                            </span>
+                          </div>
+                        </div>
+                        <div className="ot-tiempo-inputs-row">
+                          <div className="ot-tiempo-input-group">
+                            <input
+                              type="number"
+                              min="0"
+                              max="999"
+                              className="form-input ot-tiempo-input"
+                              placeholder="0"
+                              value={nuevaOtForm.tiempo_detencion_horas}
+                              onChange={(e) =>
+                                setNuevaOtForm((prev) => ({ ...prev, tiempo_detencion_horas: e.target.value }))
+                              }
+                            />
+                            <span className="ot-tiempo-unit">hrs</span>
+                          </div>
+                          <div className="ot-tiempo-input-group">
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              className="form-input ot-tiempo-input"
+                              placeholder="0"
+                              value={nuevaOtForm.tiempo_detencion_minutos}
+                              onChange={(e) =>
+                                setNuevaOtForm((prev) => ({ ...prev, tiempo_detencion_minutos: e.target.value }))
+                              }
+                            />
+                            <span className="ot-tiempo-unit">min</span>
+                          </div>
+                          {(Number(nuevaOtForm.tiempo_detencion_horas) > 0 || Number(nuevaOtForm.tiempo_detencion_minutos) > 0) && (
+                            <span className="ot-tiempo-total-badge">
+                              Total: {formatMinutosLegible((Number(nuevaOtForm.tiempo_detencion_horas) || 0) * 60 + (Number(nuevaOtForm.tiempo_detencion_minutos) || 0))} perdidos
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

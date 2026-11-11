@@ -22,6 +22,20 @@ export const formatDuracionTrabajo = (inicio, fin) => {
   if (mins === 0) return `${hours} h`
   return `${hours} h ${mins} min`
 }
+
+/**
+ * Formatea minutos a formato legible (ej: 90 -> "1 h 30 min", 45 -> "45 min")
+ */
+export const formatMinutosLegible = (minutos) => {
+  if (minutos === null || minutos === undefined || minutos === '' || isNaN(Number(minutos))) return null
+  const totalMins = Math.max(0, Math.round(Number(minutos)))
+  if (totalMins === 0) return '0 min'
+  const hours = Math.floor(totalMins / 60)
+  const mins = totalMins % 60
+  if (hours === 0) return `${mins} min`
+  if (mins === 0) return `${hours} h`
+  return `${hours} h ${mins} min`
+}
 export const PRIORIDADES_OT = ['Baja', 'Media', 'Alta', 'Crítica']
 
 const LOCAL_OT_STORAGE_KEY = 'aguacol_orden_trabajo_db_v1'
@@ -457,9 +471,19 @@ export const createOrdenTrabajo = async (payload, equiposList = [], session = nu
     tipo_falla: payload.es_falla !== false ? (payload.tipo_falla || 'Mecánica') : null,
     solucion_definitiva: (payload.solucion_definitiva || '').trim() || null,
     trabajo_pendiente: (payload.trabajo_pendiente || '').trim() || null,
+    condicion_linea: payload.condicion_linea || null,
+    tiempo_detencion_minutos:
+      payload.tiempo_detencion_minutos !== undefined &&
+      payload.tiempo_detencion_minutos !== null &&
+      payload.tiempo_detencion_minutos !== ''
+        ? Math.max(0, parseInt(payload.tiempo_detencion_minutos, 10) || 0)
+        : null,
+    utilizo_repuestos: payload.utilizo_repuestos !== undefined ? Boolean(payload.utilizo_repuestos) : false,
     fecha_reporte: payload.fecha_reporte || nowIso,
     fecha_inicio: estadoInicial === 'En curso' || estadoInicial === 'Finalizada' ? nowIso : null,
-    fecha_finalizacion: estadoInicial === 'Finalizada' ? nowIso : null
+    fecha_finalizacion: estadoInicial === 'Finalizada' ? nowIso : null,
+    fecha_hora_inicio_trabajo: payload.fecha_hora_inicio_trabajo || (estadoInicial === 'En curso' || estadoInicial === 'Finalizada' ? nowIso : null),
+    fecha_hora_fin_trabajo: payload.fecha_hora_fin_trabajo || (estadoInicial === 'Finalizada' ? nowIso : null)
   }
 
   const { data, error } = await supabase
@@ -676,6 +700,25 @@ export const changeOtStatus = async (
         nextOt.fecha_finalizacion = null
       }
 
+      if (payload.condicion_linea !== undefined) {
+        nextOt.condicion_linea = payload.condicion_linea
+      }
+      if (payload.tiempo_detencion_minutos !== undefined) {
+        nextOt.tiempo_detencion_minutos =
+          payload.tiempo_detencion_minutos !== null && payload.tiempo_detencion_minutos !== ''
+            ? Math.max(0, parseInt(payload.tiempo_detencion_minutos, 10) || 0)
+            : null
+      }
+      if (payload.utilizo_repuestos !== undefined) {
+        nextOt.utilizo_repuestos = Boolean(payload.utilizo_repuestos)
+      }
+      if (payload.fecha_hora_inicio_trabajo !== undefined) {
+        nextOt.fecha_hora_inicio_trabajo = payload.fecha_hora_inicio_trabajo
+      }
+      if (payload.fecha_hora_fin_trabajo !== undefined) {
+        nextOt.fecha_hora_fin_trabajo = payload.fecha_hora_fin_trabajo
+      }
+
       const enrichedNext = enrichOrdenTrabajo(nextOt, equiposList)
       const nextList = [...currentList]
       nextList[idx] = enrichedNext
@@ -743,6 +786,25 @@ export const changeOtStatus = async (
   } else if (newStatus === 'Pendiente') {
     // Regla 7: En curso -> Pendiente conserva fecha_inicio intacta
     updateFields.fecha_finalizacion = null
+  }
+
+  if (payload.condicion_linea !== undefined) {
+    updateFields.condicion_linea = payload.condicion_linea
+  }
+  if (payload.tiempo_detencion_minutos !== undefined) {
+    updateFields.tiempo_detencion_minutos =
+      payload.tiempo_detencion_minutos !== null && payload.tiempo_detencion_minutos !== ''
+        ? Math.max(0, parseInt(payload.tiempo_detencion_minutos, 10) || 0)
+        : null
+  }
+  if (payload.utilizo_repuestos !== undefined) {
+    updateFields.utilizo_repuestos = Boolean(payload.utilizo_repuestos)
+  }
+  if (payload.fecha_hora_inicio_trabajo !== undefined) {
+    updateFields.fecha_hora_inicio_trabajo = payload.fecha_hora_inicio_trabajo
+  }
+  if (payload.fecha_hora_fin_trabajo !== undefined) {
+    updateFields.fecha_hora_fin_trabajo = payload.fecha_hora_fin_trabajo
   }
 
   const { data: updatedOt, error: updateErr } = await supabase
@@ -824,6 +886,12 @@ export const updateOrdenTrabajoDetails = async (
   if (updates.es_falla !== undefined) cleanUpdates.es_falla = Boolean(updates.es_falla)
   if (updates.tipo_falla !== undefined) cleanUpdates.tipo_falla = updates.tipo_falla
   if (updates.condicion_linea !== undefined) cleanUpdates.condicion_linea = updates.condicion_linea
+  if (updates.tiempo_detencion_minutos !== undefined) {
+    cleanUpdates.tiempo_detencion_minutos =
+      updates.tiempo_detencion_minutos !== null && updates.tiempo_detencion_minutos !== ''
+        ? Math.max(0, parseInt(updates.tiempo_detencion_minutos, 10) || 0)
+        : null
+  }
   if (updates.utilizo_repuestos !== undefined) cleanUpdates.utilizo_repuestos = Boolean(updates.utilizo_repuestos)
   if (updates.solicitante_nombre !== undefined) cleanUpdates.solicitante_nombre = updates.solicitante_nombre
   if (updates.solicitante_area !== undefined) cleanUpdates.solicitante_area = updates.solicitante_area

@@ -6761,3 +6761,88 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
 }
+
+
+/* Bloque de Tiempo Perdido / Línea Detenida */
+.ot-tiempo-detencion-box {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px dashed rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+}
+
+.ot-tiempo-detencion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.ot-tiempo-detencion-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.ot-tiempo-detencion-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: #fca5a5;
+  margin-top: 0.1rem;
+}
+
+.ot-tiempo-inputs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.ot-tiempo-input-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ot-tiempo-input {
+  width: 75px !important;
+  text-align: center;
+  font-size: 1rem !important;
+  font-weight: 700;
+  padding: 0.45rem 0.5rem !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  background: rgba(15, 23, 42, 0.7) !important;
+  color: #ffffff !important;
+}
+
+.ot-tiempo-input:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+}
+
+.ot-tiempo-unit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.ot-tiempo-total-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.ot-badge-detencion {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  color: #fca5a5 !important;
+  font-weight: 700;
+}
