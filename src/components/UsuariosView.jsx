@@ -69,6 +69,49 @@ export const ROLES = {
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : 'Nunca')
 
+export const USUARIOS_SEGMENTADOS = [
+  {
+    username: 'LDONOSO',
+    email: 'ldonoso@aguacol.cl',
+    password: 'LDONOSO123',
+    role: 'visor_ot_plasticos',
+    area: 'Plásticos',
+    nombre: 'Lizette Donoso',
+    badgeClass: 'badge-plasticos',
+    desc: 'Visor exclusivo de Órdenes de Trabajo de Plásticos (Extrusión, Inyección, Soplado).'
+  },
+  {
+    username: 'EGALAZ',
+    email: 'egalaz@aguacol.cl',
+    password: 'EGALAZ123',
+    role: 'visor_ot_plasticos',
+    area: 'Plásticos',
+    nombre: 'Ernesto Galaz',
+    badgeClass: 'badge-plasticos',
+    desc: 'Visor exclusivo de Órdenes de Trabajo de Plásticos (Extrusión, Inyección, Soplado).'
+  },
+  {
+    username: 'DOTEIZA',
+    email: 'doteiza@aguacol.cl',
+    password: 'DOTEIZA123',
+    role: 'visor_ot_jjv',
+    area: 'Producción JJV',
+    nombre: 'Daniel Oteiza',
+    badgeClass: 'badge-jjv',
+    desc: 'Visor exclusivo de Órdenes de Trabajo del área Producción JJV.'
+  },
+  {
+    username: 'BOTEIZA',
+    email: 'boteiza@aguacol.cl',
+    password: 'BOTEIZA123',
+    role: 'supervisor_plasticos',
+    area: 'Plásticos',
+    nombre: 'Bastián Oteiza',
+    badgeClass: 'badge-plasticos',
+    desc: 'Acceso a Mantenimiento Preventivo, KPI de Disponibilidad y Órdenes de Trabajo de Plásticos.'
+  }
+]
+
 export default function UsuariosView({ session }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -219,16 +262,92 @@ export default function UsuariosView({ session }) {
     setSaving(false)
   }
 
-  // Identificar qué cuentas de operadores ya están creadas
+  const [syncingEspeciales, setSyncingEspeciales] = useState(false)
+
+  // Identificar qué cuentas ya están creadas
   const getExistingUserByRoleOrEmail = (roleKey, defaultUsername) => {
-    return users.find(
-      (u) =>
-        u.role === roleKey ||
-        u.username === defaultUsername ||
-        u.email === defaultUsername ||
-        u.email === `${defaultUsername}@aguacol.cl`
-    )
+    const uLow = (defaultUsername || '').toLowerCase()
+    return users.find((u) => {
+      const email = (u.email || '').toLowerCase()
+      const uname = (u.username || u.user_metadata?.username || email.split('@')[0] || '').toLowerCase()
+      const r = u.user_metadata?.role || u.role
+      if (uname === uLow || email === uLow || email === `${uLow}@aguacol.cl`) return true
+      if (roleKey && !['admin', 'viewer'].includes(roleKey) && r === roleKey) return true
+      return false
+    })
   }
+
+  const sincronizarUsuariosSegmentados = async () => {
+    setSyncingEspeciales(true)
+    setError('')
+    setAviso('')
+    let creados = 0
+    let actualizados = 0
+    try {
+      const r = await api('').catch(() => ({ users: [] }))
+      const list = r.users || []
+
+      for (const op of USUARIOS_SEGMENTADOS) {
+        const cleanUser = op.username.toLowerCase()
+        const emailFinal = op.email.toLowerCase()
+        const match = list.find((u) => {
+          const email = (u.email || '').toLowerCase()
+          const uname = (u.username || u.user_metadata?.username || email.split('@')[0] || '').toLowerCase()
+          return uname === cleanUser || email === emailFinal
+        })
+
+        const baseRole = 'viewer'
+        const payload = {
+          username: cleanUser,
+          email: emailFinal,
+          password: op.password,
+          role: baseRole,
+          app_role: op.role,
+          area: op.area,
+          user_metadata: {
+            role: op.role,
+            area: op.area,
+            username: cleanUser,
+            nombre: op.nombre
+          }
+        }
+
+        if (!match) {
+          try {
+            await api('', { method: 'POST', body: JSON.stringify(payload) })
+            creados++
+          } catch (err) {
+            console.warn(`Error creando ${cleanUser}:`, err)
+          }
+        } else {
+          try {
+            await api(`/${match.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                role: baseRole,
+                password: op.password,
+                user_metadata: payload.user_metadata
+              })
+            })
+            actualizados++
+          } catch (err) {
+            console.warn(`Error actualizando ${cleanUser}:`, err)
+          }
+        }
+      }
+
+      setAviso(`Sincronización completada: ${creados} usuario(s) creado(s), ${actualizados} actualizado(s).`)
+      await cargar()
+    } catch (err) {
+      setError(`Error al sincronizar usuarios: ${err.message}`)
+    } finally {
+      setSyncingEspeciales(false)
+    }
+  }
+
+  const pendientesSegmentados = USUARIOS_SEGMENTADOS.filter(
+    (u) => !getExistingUserByRoleOrEmail(u.role, u.username)
+  )
 
   const yo = session?.user?.id
 
@@ -249,6 +368,41 @@ export default function UsuariosView({ session }) {
       <section className="content-body">
         {aviso && <div className="alert-success" role="status"><Icon n="check" /> <span>{aviso}</span></div>}
         {error && <div className="alert-error" role="alert"><Icon n="warn" /> <span>{error}</span></div>}
+
+        {pendientesSegmentados.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.5rem',
+              borderRadius: '12px',
+              background: 'rgba(234, 179, 8, 0.12)',
+              border: '1px solid rgba(234, 179, 8, 0.35)',
+              color: '#fef08a'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon n="warn" />
+              <span>
+                <strong>Usuarios solicitados pendientes:</strong> {pendientesSegmentados.map((u) => u.username).join(', ')} listos para crear con 1 clic.
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              disabled={syncingEspeciales}
+              onClick={sincronizarUsuariosSegmentados}
+              style={{ background: '#eab308', color: '#0f172a', fontWeight: 700 }}
+            >
+              {syncingEspeciales ? <Loader2 size={14} className="usr-spin" /> : <UserPlus size={14} />}
+              {syncingEspeciales ? 'Creando usuarios...' : 'Crear / Sincronizar Ahora'}
+            </button>
+          </div>
+        )}
 
         {/* =========================================================================
             PANEL DE GENERACIÓN DIRECTA DE OPERADORES PARA TABLET EN PLANTA
@@ -413,6 +567,81 @@ export default function UsuariosView({ session }) {
           </div>
         </div>
 
+        {/* =========================================================================
+            PANEL DE USUARIOS CON ACCESO SEGMENTADO (PLÁSTICOS Y PRODUCCIÓN JJV)
+           ========================================================================= */}
+        <div className="operadores-quick-card" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+          <div className="operadores-quick-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div className="operadores-quick-title">
+              <span className="operadores-quick-icon-wrap" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}><ShieldCheck size={20} /></span>
+              <div>
+                <h3 className="operadores-quick-heading">Usuarios con Acceso Segmentado por Área (Plásticos y JJV)</h3>
+                <p className="operadores-quick-sub">
+                  Cuentas con visibilidad restringida para supervisión y seguimiento de Órdenes de Trabajo, Preventivo y KPIs.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              disabled={syncingEspeciales}
+              onClick={sincronizarUsuariosSegmentados}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              {syncingEspeciales ? <Loader2 size={14} className="usr-spin" /> : <UserPlus size={14} />}
+              {syncingEspeciales ? 'Sincronizando...' : 'Crear / Sincronizar todos (4)'}
+            </button>
+          </div>
+
+          <div className="operadores-quick-grid">
+            {USUARIOS_SEGMENTADOS.map((usr) => {
+              const existing = getExistingUserByRoleOrEmail(usr.role, usr.username)
+              return (
+                <div key={usr.username} className={`operador-item-card ${existing ? 'is-active' : ''}`}>
+                  <div className="operador-item-top">
+                    <span className={`operador-item-badge ${usr.badgeClass}`}>{usr.area}</span>
+                    {existing ? (
+                      <span className="operador-status-tag tag-active"><CheckCircle2 size={13} /> Activo</span>
+                    ) : (
+                      <span className="operador-status-tag tag-pending">Pendiente</span>
+                    )}
+                  </div>
+                  <h4 className="operador-item-title">{usr.nombre}</h4>
+                  <p className="operador-item-email">
+                    Usuario: <strong>{usr.username}</strong> &nbsp;•&nbsp; Clave: <code>{usr.password}</code>
+                  </p>
+                  <p className="operador-item-desc">{usr.desc}</p>
+                  <div className="operador-item-action">
+                    {existing ? (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => abrir('editar', existing)}
+                      >
+                        <KeyRound size={13} /> Modificar / Clave
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm btn-generate-op"
+                        onClick={() =>
+                          abrir('crear', null, {
+                            nombre: usr.username,
+                            role: usr.role,
+                            password: usr.password
+                          })
+                        }
+                      >
+                        <UserPlus size={13} /> Crear {usr.nombre.split(' ')[0]}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         {/* TABLA PRINCIPAL DE USUARIOS */}
         <div className="table-card">
           <div className="table-card-header" style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--line)' }}>
@@ -428,8 +657,9 @@ export default function UsuariosView({ session }) {
                 </thead>
                 <tbody>
                   {users.map((u) => {
-                    const R = ROLES[u.role] || ROLES.viewer
-                    const isOp = u.role && u.role.startsWith('operador')
+                    const effectiveRole = u.user_metadata?.role || u.role
+                    const R = ROLES[effectiveRole] || ROLES[u.role] || ROLES.viewer
+                    const isOp = effectiveRole && effectiveRole.startsWith('operador')
                     return (
                       <tr key={u.id}>
                         <td>

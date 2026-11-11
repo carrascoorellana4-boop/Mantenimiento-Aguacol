@@ -318,6 +318,18 @@ button .ico:first-child:not(:last-child), span > .ico + * { margin-right: .35em;
   border: 1px solid rgba(52, 211, 153, 0.35);
 }
 
+.badge-plasticos {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.badge-jjv {
+  background: rgba(14, 165, 233, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+}
+
 .operador-status-tag {
   font-size: 0.72rem;
   font-weight: 600;
