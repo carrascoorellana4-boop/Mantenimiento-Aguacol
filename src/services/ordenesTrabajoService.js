@@ -70,36 +70,99 @@ export const resolveOtEquipoDisplay = (ot, equiposList = []) => {
     matchedEq = equiposList.find((e) => e.id === ot.equipo_id) || null
   }
 
-  const equipoNombre = matchedEq?.nombre || ot.equipo_nombre || 'Equipo general'
+  // Si no hizo match por equipo_id, intentar por ubicacion o equipo_solicitado en equiposList
+  if (!matchedEq && Array.isArray(equiposList) && equiposList.length > 0) {
+    const candidatos = [ot.ubicacion, ot.equipo_solicitado, ot.equipo_nombre].filter(Boolean)
+    for (const c of candidatos) {
+      const cNorm = c.toLowerCase().trim()
+      let found = equiposList.find(
+        (e) => e.nombre?.toLowerCase() === cNorm || e.codigo?.toLowerCase() === cNorm
+      )
+      if (found) { matchedEq = found; break }
+
+      if (/inyectora\s*2/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-PLA-GPL-INY-02' || /inyectora\s*2/i.test(e.nombre || ''))
+        if (found) { matchedEq = found; break }
+      }
+      if (/borche/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-PLA-GPL-INY-BOR' || /borche/i.test(e.nombre || ''))
+        if (found) { matchedEq = found; break }
+      }
+      if (/sopladora\s*s2|\bs2\b/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-SOP-S02' || e.nombre === 'S2')
+        if (found) { matchedEq = found; break }
+      }
+      if (/sopladora\s*s1|\bs1\b/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-SOP-S01' || e.nombre === 'S1')
+        if (found) { matchedEq = found; break }
+      }
+      if (/preformas?\s*1/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-PLA-GPL-INY-PREF' || /preformas?\s*1/i.test(e.nombre || ''))
+        if (found) { matchedEq = found; break }
+      }
+      if (/preformas?\s*2/i.test(cNorm)) {
+        found = equiposList.find((e) => e.codigo === 'AGL-PLA-GPL-INY-PREF-02' || /preformas?\s*2/i.test(e.nombre || ''))
+        if (found) { matchedEq = found; break }
+      }
+      if (/extrusora\s*m([1-5])/i.test(cNorm)) {
+        const num = cNorm.match(/extrusora\s*m([1-5])/i)[1]
+        found = equiposList.find((e) => e.nombre?.toLowerCase() === `extrusora m${num}`)
+        if (found) { matchedEq = found; break }
+      }
+    }
+  }
+
+  // Nombre de equipo resuelto
+  let equipoNombre = matchedEq?.nombre || ot.equipo_nombre
+  if (!equipoNombre) {
+    if (ot.ubicacion && ot.ubicacion.trim()) {
+      equipoNombre = ot.ubicacion.trim()
+    } else if (ot.equipo_solicitado && ot.equipo_solicitado.trim()) {
+      equipoNombre = ot.equipo_solicitado.trim()
+    } else {
+      equipoNombre = 'Equipo general'
+    }
+  }
 
   // Determinar ubicación limpia (ej: Extrusión, Soplado, Inyección, Producción)
-  let rawUbicacion = (ot.ubicacion || matchedEq?.ubicacion || ot.area || matchedEq?.area || '').trim()
+  let rawUbicacion = (matchedEq?.area || ot.area || ot.ubicacion || matchedEq?.ubicacion || '').trim()
   if (rawUbicacion.includes('→')) {
     const parts = rawUbicacion.split('→').map((p) => p.trim()).filter(Boolean)
     rawUbicacion = parts[parts.length - 1] || rawUbicacion
   } else if (rawUbicacion.includes(' - ')) {
     const parts = rawUbicacion.split(' - ').map((p) => p.trim()).filter(Boolean)
     rawUbicacion = parts[parts.length - 1] || rawUbicacion
-  } else if (rawUbicacion.includes('/')) {
-    const parts = rawUbicacion.split('/').map((p) => p.trim()).filter(Boolean)
+  } else if (rawUbicacion.includes(' / ')) {
+    // Solo separar por ' / ' (espacio-barra-espacio), nunca por '/' simple para no mutilar "Tapas/Manillas" o "M4/M5"
+    const parts = rawUbicacion.split(' / ').map((p) => p.trim()).filter(Boolean)
     rawUbicacion = parts[parts.length - 1] || rawUbicacion
   }
 
   // Mapeos limpios según jerarquía oficial de planta AGUACOL
   const nomUpper = equipoNombre.toUpperCase()
   if (!rawUbicacion || rawUbicacion.toLowerCase() === 'plásticos' || rawUbicacion.toLowerCase() === 'plasticos') {
-    if (['M1', 'M2', 'M3', 'M4', 'M5'].includes(nomUpper) || nomUpper.includes('M4-M5')) {
+    if (['M1', 'M2', 'M3', 'M4', 'M5'].includes(nomUpper) || nomUpper.includes('EXTRUSORA') || nomUpper.includes('M4-M5')) {
       rawUbicacion = 'Extrusión'
-    } else if (nomUpper.includes('INYECTOR')) {
+    } else if (nomUpper.includes('INYECTOR') || nomUpper.includes('BORCHE') || nomUpper.includes('PREFORMA')) {
       rawUbicacion = 'Inyección'
-    } else if (['S1', 'S2'].includes(nomUpper) || nomUpper.includes('PET')) {
+    } else if (['S1', 'S2'].includes(nomUpper) || nomUpper.includes('SOPLAD') || nomUpper.includes('PET')) {
       rawUbicacion = 'Soplado'
     }
   }
 
+  // Si se solicitó un componente específico sobre la máquina (ej: "Lainera" o "Caja Reductora")
+  let ubicacionDisplay = rawUbicacion || ot.area || matchedEq?.area || 'Planta General'
+  if (
+    ot.equipo_solicitado &&
+    ot.equipo_solicitado.trim() &&
+    ot.equipo_solicitado.trim().toLowerCase() !== equipoNombre.toLowerCase()
+  ) {
+    ubicacionDisplay = `${ot.equipo_solicitado.trim()} • ${ubicacionDisplay}`
+  }
+
   return {
     equipoNombre,
-    ubicacionDisplay: rawUbicacion || ot.area || matchedEq?.area || 'Planta General',
+    ubicacionDisplay,
     areaDisplay: ot.area || matchedEq?.area || rawUbicacion || 'Planta General'
   }
 }
