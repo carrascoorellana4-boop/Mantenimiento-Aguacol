@@ -395,8 +395,51 @@ button .ico:first-child:not(:last-child), span > .ico + * { margin-right: .35em;
 .usr-del { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; border-radius: 10px; font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; color: #fca5a5; background: rgba(248, 113, 113, .12); border: 1px solid rgba(248, 113, 113, .4); transition: background .2s, transform .2s; }
 .usr-del:hover:not(:disabled) { background: rgba(248, 113, 113, .26); transform: translateY(-1px); }
 .usr-del:disabled { opacity: .4; cursor: not-allowed; }
-.usr-modal { max-width: 520px; width: calc(100% - 2rem); }
-.usr-body { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem 1.5rem; }
+.usr-modal {
+  max-width: 540px;
+  width: calc(100% - 2rem);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.usr-modal form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.usr-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.usr-body::-webkit-scrollbar {
+  width: 6px;
+}
+.usr-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+.usr-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.usr-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+.usr-modal .form-actions {
+  flex-shrink: 0;
+  background: var(--g-surface-strong, #091322);
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
 .usr-mail { display: flex; align-items: center; gap: .5rem; }
 .usr-mail .form-input { flex: 1; }
 .usr-dom { color: var(--text-secondary); font-weight: 600; white-space: nowrap; }

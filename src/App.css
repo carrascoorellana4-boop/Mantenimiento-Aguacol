@@ -1173,6 +1173,7 @@
   padding: 1.5rem;
   z-index: 1000;
   animation: fadeIn 0.2s ease-out;
+  overflow-y: auto;
 }
 
 .modal-container {
