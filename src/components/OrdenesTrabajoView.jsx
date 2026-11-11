@@ -2,6 +2,7 @@ import Icon from './Icon'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { TECNICOS_BASE } from '../config/tecnicos'
 import { parseTecnicos } from '../lib/tecnicos'
+import { getUserAllowedArea, isOtInAllowedArea, isAreaMatching } from '../lib/authRoles'
 import {
   ESTADOS_OT,
   ORIGENES_OT,
@@ -226,18 +227,37 @@ export default function OrdenesTrabajoView({
   const [nuevaOtError, setNuevaOtError] = useState('')
   const [nuevaOtSubmitting, setNuevaOtSubmitting] = useState(false)
 
+  // Área asignada al usuario según rol o metadatos
+  const userAllowedArea = useMemo(() => {
+    return getUserAllowedArea(session?.user)
+  }, [session?.user])
+
+  // Filtrado estricto por área asignada (Plásticos, Producción JJV, etc.)
+  const scopedOrdenesList = useMemo(() => {
+    if (!userAllowedArea) return ordenesList
+    return ordenesList.filter((ot) => isOtInAllowedArea(ot, userAllowedArea, equiposList))
+  }, [ordenesList, userAllowedArea, equiposList])
+
+  // Lista de equipos visibles acotados por área del usuario
+  const equiposVisibles = useMemo(() => {
+    if (!userAllowedArea) return equiposList
+    return equiposList.filter(
+      (eq) => isAreaMatching(eq.area, userAllowedArea) || isAreaMatching(eq.nombre, userAllowedArea)
+    )
+  }, [equiposList, userAllowedArea])
+
   // Catálogo de técnicos disponibles
   const tecnicosCatalogo = useMemo(() => {
     const set = new Set(TECNICOS_BASE.map((t) => t.nombre))
-    ordenesList.forEach((ot) => {
+    scopedOrdenesList.forEach((ot) => {
       parseTecnicos(ot.tecnico).forEach((t) => set.add(t))
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'))
-  }, [ordenesList])
+  }, [scopedOrdenesList])
 
   // Filtrado de OTs en el tablero
   const filteredOrdenes = useMemo(() => {
-    return ordenesList.filter((ot) => {
+    return scopedOrdenesList.filter((ot) => {
       if (filterEquipoId && ot.equipo_id !== filterEquipoId) return false
       if (filterOrigen && ot.origen !== filterOrigen) return false
       if (filterTecnico) {
@@ -267,7 +287,7 @@ export default function OrdenesTrabajoView({
       }
       return true
     })
-  }, [ordenesList, filterEquipoId, filterOrigen, filterTecnico, searchQuery, equiposList])
+  }, [scopedOrdenesList, filterEquipoId, filterOrigen, filterTecnico, searchQuery, equiposList])
 
   // Agrupación directa por estado
   const columnsMap = useMemo(() => {
@@ -299,7 +319,7 @@ export default function OrdenesTrabajoView({
     let finalizadasTotal = 0
     let finalizadasMesActual = 0
 
-    ordenesList.forEach((ot) => {
+    scopedOrdenesList.forEach((ot) => {
       if (ot.estado === 'Pendiente') pendientes++
       else if (ot.estado === 'En curso') enCurso++
       else if (ot.estado === 'Finalizada') {
@@ -314,7 +334,7 @@ export default function OrdenesTrabajoView({
     })
 
     return { pendientes, enCurso, finalizadasTotal, finalizadasMesActual }
-  }, [ordenesList])
+  }, [scopedOrdenesList])
 
   // Ejecución de cambio de estado con Optimistic UI y reversión automática ante error
   const executeStatusChangeWithOptimisticUi = async (ot, newStatus, extraPayload = {}) => {
@@ -1051,6 +1071,11 @@ export default function OrdenesTrabajoView({
           <h1 className="ot-clean-title">Órdenes de Trabajo</h1>
           <p className="ot-clean-subtitle">
             Gestión y seguimiento de trabajos de mantenimiento
+            {userAllowedArea && (
+              <span className="ot-user-area-badge" style={{ marginLeft: '8px', color: '#38bdf8', fontWeight: 600 }}>
+                • Área: {userAllowedArea}
+              </span>
+            )}
           </p>
         </div>
 
@@ -1173,7 +1198,7 @@ export default function OrdenesTrabajoView({
           aria-label="Equipo"
         >
           <option value="">Equipo</option>
-          {equiposList.map((eq) => (
+          {equiposVisibles.map((eq) => (
             <option key={eq.id} value={eq.id}>
               {eq.nombre}
             </option>

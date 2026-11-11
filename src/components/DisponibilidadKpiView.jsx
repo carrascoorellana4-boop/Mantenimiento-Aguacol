@@ -18,6 +18,7 @@ import SelectorPeriodoVisual from './SelectorPeriodoVisual'
 import disponibilidadInicial from '../config/disponibilidadConsolidadaInicial.json'
 import './DisponibilidadKpi.css'
 import * as XLSX from 'xlsx'
+import { getUserAllowedArea, isAreaMatching } from '../lib/authRoles'
 import {
   fetchRegistrosDisponibilidad,
   guardarLoteDisponibilidad,
@@ -26,7 +27,11 @@ import {
   consolidarKpisDisponibilidad,
 } from '../services/disponibilidadService'
 
-export default function DisponibilidadKpiView({ _session, isAdmin = false, equiposList = [], onBack }) {
+export default function DisponibilidadKpiView({ session = null, _session, isAdmin = false, equiposList = [], onBack }) {
+  const currentSession = session || _session
+  const userAllowedArea = useMemo(() => {
+    return getUserAllowedArea(currentSession?.user)
+  }, [currentSession?.user])
   const [registros, setRegistros] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
@@ -85,6 +90,13 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
   const registrosFiltrados = useMemo(() => {
     let result = [...registros]
 
+    // Filtro estricto por área asignada al usuario
+    if (userAllowedArea) {
+      result = result.filter(
+        (r) => isAreaMatching(r.area, userAllowedArea) || isAreaMatching(r.nombre_equipo, userAllowedArea)
+      )
+    }
+
     // Filtro visual de fechas (AÑO, MES, DÍAS)
     if (!periodoVisual.isAll) {
       if (periodoVisual.fechaDesde) {
@@ -114,7 +126,7 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
     }
 
     return result
-  }, [registros, periodoVisual, equipoFiltro, searchQuery])
+  }, [registros, userAllowedArea, periodoVisual, equipoFiltro, searchQuery])
 
   // KPIs consolidados
   const kpis = useMemo(() => {
@@ -124,14 +136,20 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
   // Lista única de equipos presentes para el selector
   const listaEquiposSelector = useMemo(() => {
     const s = new Map()
-    registros.forEach((r) => {
+    const baseRegistros = userAllowedArea
+      ? registros.filter(
+          (r) => isAreaMatching(r.area, userAllowedArea) || isAreaMatching(r.nombre_equipo, userAllowedArea)
+        )
+      : registros
+
+    baseRegistros.forEach((r) => {
       const key = r.codigo_equipo || r.nombre_equipo
       if (key && !s.has(key)) {
         s.set(key, r.nombre_equipo || r.codigo_equipo)
       }
     })
     return Array.from(s.entries()).map(([k, val]) => ({ codigo: k, nombre: val }))
-  }, [registros])
+  }, [registros, userAllowedArea])
 
   // Manejar selección de archivo Excel
   const handleFileChange = async (e) => {
@@ -262,6 +280,11 @@ export default function DisponibilidadKpiView({ _session, isAdmin = false, equip
 
         <p className="disp-subtitle">
           Consolidación de horas disponibles y horas en mantención por activo según planilla oficial de producción.
+          {userAllowedArea && (
+            <span style={{ marginLeft: '8px', color: '#38bdf8', fontWeight: 600 }}>
+              • Área asignada: {userAllowedArea}
+            </span>
+          )}
         </p>
 
         {/* FÓRMULA OFICIAL EXACTA */}

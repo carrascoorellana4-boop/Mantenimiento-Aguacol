@@ -44,6 +44,27 @@ export const ROLES = {
     defaultPassword: 'Inyeccion2026',
     Cmp: Tablet
   },
+  visor_ot_plasticos: {
+    label: 'Visor OT Plásticos',
+    hint: 'Acceso de lectura a órdenes de trabajo de Plásticos (Extrusión, Inyección, Soplado).',
+    badgeClass: 'usr-rol-viewer',
+    area: 'Plásticos',
+    Cmp: Eye
+  },
+  visor_ot_jjv: {
+    label: 'Visor OT Producción JJV',
+    hint: 'Acceso de lectura a órdenes de trabajo de Producción JJV.',
+    badgeClass: 'usr-rol-viewer',
+    area: 'Producción JJV',
+    Cmp: Eye
+  },
+  supervisor_plasticos: {
+    label: 'Supervisor Plásticos',
+    hint: 'Acceso a Mantenimiento Preventivo, KPI de Disponibilidad y Órdenes de Trabajo de Plásticos.',
+    badgeClass: 'usr-rol-admin',
+    area: 'Plásticos',
+    Cmp: ShieldCheck
+  },
 }
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : 'Nunca')

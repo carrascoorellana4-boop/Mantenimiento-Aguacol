@@ -61,7 +61,16 @@ const gotrue = (pathUrl, init = {}) => fetch(`${GOTRUE}${pathUrl}`, {
 
 const aRol = (r) => {
   if (r === 'admin') return ADMIN
-  if (r === 'viewer' || r === 'operador' || r === 'operador_extrusion' || r === 'operador_soplado' || r === 'operador_inyeccion') {
+  if (
+    r === 'viewer' ||
+    r === 'operador' ||
+    r === 'operador_extrusion' ||
+    r === 'operador_soplado' ||
+    r === 'operador_inyeccion' ||
+    r === 'visor_ot_plasticos' ||
+    r === 'visor_ot_jjv' ||
+    r === 'supervisor_plasticos'
+  ) {
     return VIEWER
   }
   return null
@@ -74,13 +83,19 @@ const publico = (u) => {
     else if (u.email?.includes('opextrusion') || u.email?.includes('operador.extrusion') || u.email?.includes('operador_extrusion')) role = 'operador_extrusion'
     else if (u.email?.includes('opsoplado') || u.email?.includes('operador.soplado') || u.email?.includes('operador_soplado')) role = 'operador_soplado'
     else if (u.email?.includes('opinyeccion') || u.email?.includes('operador.inyeccion') || u.email?.includes('operador_inyeccion')) role = 'operador_inyeccion'
+    else if (u.email?.includes('ldonoso')) role = 'visor_ot_plasticos'
+    else if (u.email?.includes('egalaz')) role = 'visor_ot_plasticos'
+    else if (u.email?.includes('doteiza')) role = 'visor_ot_jjv'
+    else if (u.email?.includes('boteiza')) role = 'supervisor_plasticos'
     else if (u.email?.includes('operador')) role = 'operador'
     else role = 'viewer'
   }
   const area = u.user_metadata?.area || (
     role === 'operador_extrusion' ? 'Extrusión' :
     role === 'operador_soplado' ? 'Soplado' :
-    role === 'operador_inyeccion' ? 'Inyección' : null
+    role === 'operador_inyeccion' ? 'Inyección' :
+    role === 'visor_ot_plasticos' || role === 'supervisor_plasticos' ? 'Plásticos' :
+    role === 'visor_ot_jjv' ? 'Producción JJV' : null
   )
   const username = u.user_metadata?.username || u.email?.replace(/@aguacol\.cl$/i, '') || u.email
   return {
@@ -335,6 +350,14 @@ http.createServer(async (req, res) => {
     }
 
     // -------------------------------------------------------------
+    // 2b. ENDPOINT PARA SINCRONIZACIÓN AUTOMÁTICA DE USUARIOS BASE
+    // -------------------------------------------------------------
+    if (urlPath === '/api/solicitudes/sync-usuarios' || urlPath === '/api/sync-usuarios') {
+      const resSync = await asegurarOperadoresBase(true)
+      return send(200, { ok: true, message: 'Sincronización de usuarios base ejecutada.', detalle: resSync })
+    }
+
+    // -------------------------------------------------------------
     // VALIDACIÓN DE SESIÓN JWT PARA ACCIONES DE ESCRITURA Y USERS
     // -------------------------------------------------------------
     const tokenHeader = (req.headers.authorization || '').replace(/^Bearer /, '')
@@ -409,7 +432,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(Number(PORT), '127.0.0.1', () => console.log('usermgr y evidencias escuchando en', PORT))
 
-// Creación y aseguramiento automático de los 3 usuarios operadores requeridos
+// Creación y aseguramiento automático de los usuarios base y roles requeridos
 const OPERADORES_BASE = [
   {
     username: 'opextrusion',
@@ -417,7 +440,8 @@ const OPERADORES_BASE = [
     password: 'Extrusion2026',
     role: 'operador_extrusion',
     area: 'Extrusión',
-    nombre: 'Operador Extrusión'
+    nombre: 'Operador Extrusión',
+    allowed_modules: ['mantenimiento-preventivo']
   },
   {
     username: 'opinyeccion',
@@ -425,7 +449,8 @@ const OPERADORES_BASE = [
     password: 'Inyeccion2026',
     role: 'operador_inyeccion',
     area: 'Inyección',
-    nombre: 'Operador Inyección'
+    nombre: 'Operador Inyección',
+    allowed_modules: ['mantenimiento-preventivo']
   },
   {
     username: 'opsoplado',
@@ -433,54 +458,125 @@ const OPERADORES_BASE = [
     password: 'Soplado2026',
     role: 'operador_soplado',
     area: 'Soplado',
-    nombre: 'Operador Soplado'
+    nombre: 'Operador Soplado',
+    allowed_modules: ['mantenimiento-preventivo']
+  },
+  {
+    username: 'ldonoso',
+    email: 'ldonoso@aguacol.cl',
+    password: 'LDONOSO123',
+    role: 'visor_ot_plasticos',
+    area: 'Plásticos',
+    nombre: 'Lizette Donoso',
+    allowed_modules: ['ordenes-trabajo']
+  },
+  {
+    username: 'egalaz',
+    email: 'egalaz@aguacol.cl',
+    password: 'EGALAZ123',
+    role: 'visor_ot_plasticos',
+    area: 'Plásticos',
+    nombre: 'Ernesto Galaz',
+    allowed_modules: ['ordenes-trabajo']
+  },
+  {
+    username: 'doteiza',
+    email: 'doteiza@aguacol.cl',
+    password: 'DOTEIZA123',
+    role: 'visor_ot_jjv',
+    area: 'Producción JJV',
+    nombre: 'Daniel Oteiza',
+    allowed_modules: ['ordenes-trabajo']
+  },
+  {
+    username: 'boteiza',
+    email: 'boteiza@aguacol.cl',
+    password: 'BOTEIZA123',
+    role: 'supervisor_plasticos',
+    area: 'Plásticos',
+    nombre: 'Bastián Oteiza',
+    allowed_modules: ['ordenes-trabajo', 'mantenimiento-preventivo', 'disponibilidad']
   }
 ]
 
 let seedEjecutado = false
-async function asegurarOperadoresBase() {
-  if (seedEjecutado) return
-  seedEjecutado = true
+let syncInProgress = false
+async function asegurarOperadoresBase(forzar = false) {
+  if (syncInProgress) return { status: 'en_progreso' }
+  if (seedEjecutado && !forzar) return { status: 'ya_ejecutado' }
+  syncInProgress = true
+  const resultados = []
   try {
     const r = await gotrue('/admin/users?per_page=200')
     const d = await r.json()
     const existing = d.users || []
 
     for (const op of OPERADORES_BASE) {
-      const match = existing.find(u => u.email === op.email || u.user_metadata?.username === op.username)
+      const match = existing.find(
+        (u) =>
+          u.email?.toLowerCase() === op.email.toLowerCase() ||
+          u.user_metadata?.username?.toLowerCase() === op.username.toLowerCase()
+      )
       if (!match) {
         console.log(`[usermgr] Creando usuario automático ${op.username} (${op.email})...`)
-        await gotrue('/admin/users', {
+        const resp = await gotrue('/admin/users', {
           method: 'POST',
           body: JSON.stringify({
             email: op.email,
             password: op.password,
             role: VIEWER,
-            user_metadata: { role: op.role, area: op.area, nombre: op.nombre, username: op.username },
+            user_metadata: {
+              role: op.role,
+              area: op.area,
+              nombre: op.nombre,
+              username: op.username,
+              allowed_modules: op.allowed_modules
+            },
             app_metadata: { role: op.role },
             email_confirm: true
           })
         })
+        resultados.push({ usuario: op.username, accion: 'creado', ok: resp.ok })
       } else {
         // Asegurar que tenga la contraseña y metadata asignadas
-        console.log(`[usermgr] Usuario ${op.username} ya existe, verificando metadata...`)
-        await gotrue(`/admin/users/${match.id}`, {
+        console.log(`[usermgr] Usuario ${op.username} ya existe, verificando y actualizando metadata...`)
+        const resp = await gotrue(`/admin/users/${match.id}`, {
           method: 'PUT',
           body: JSON.stringify({
             password: op.password,
-            user_metadata: { ...(match.user_metadata || {}), role: op.role, area: op.area, nombre: op.nombre, username: op.username },
+            user_metadata: {
+              ...(match.user_metadata || {}),
+              role: op.role,
+              area: op.area,
+              nombre: op.nombre,
+              username: op.username,
+              allowed_modules: op.allowed_modules
+            },
             app_metadata: { ...(match.app_metadata || {}), role: op.role }
           })
         })
+        resultados.push({ usuario: op.username, accion: 'actualizado', ok: resp.ok })
       }
     }
+    seedEjecutado = true
+    return { ok: true, detalle: resultados }
   } catch (err) {
-    console.warn('[usermgr] No se pudo sincronizar operadores base:', err.message)
+    console.warn('[usermgr] No se pudo sincronizar usuarios base:', err.message)
+    return { ok: false, error: err.message }
+  } finally {
+    syncInProgress = false
   }
 }
 
 // Ejecutar seed al arrancar el servidor
 setTimeout(asegurarOperadoresBase, 1500)
+
+// Asegurar sincronización periódica cada 60 segundos
+setInterval(() => {
+  asegurarOperadoresBase(true).catch((e) =>
+    console.warn('[usermgr] Error en sincronización periódica de usuarios:', e.message)
+  )
+}, 60000)
 
 // -------------------------------------------------------------
 // CONFIGURACIÓN DINÁMICA DEL SISTEMA (POSTGRESQL / POSTGREST)

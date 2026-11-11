@@ -7,3 +7,4 @@ ADD COLUMN IF NOT EXISTS tiempo_detencion_minutos integer DEFAULT NULL;
 COMMENT ON COLUMN public.orden_trabajo.tiempo_detencion_minutos IS 'Tiempo que la línea estuvo detenida expresado en minutos (tiempo perdido operacional)';
 
 NOTIFY pgrst, 'reload schema';
+

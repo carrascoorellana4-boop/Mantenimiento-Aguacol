@@ -16,7 +16,14 @@ import UsuariosView from './components/UsuariosView'
 import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
 import DisponibilidadKpiView from './components/DisponibilidadKpiView'
 import SolicitudMantenimientoQrView from './components/SolicitudMantenimientoQrView'
-import { getUserRole, isOperatorRole, getOperatorArea } from './lib/authRoles'
+import {
+  getUserRole,
+  isOperatorRole,
+  getOperatorArea,
+  getUserAllowedArea,
+  getUserAllowedViews,
+  getUserDisplayInfo
+} from './lib/authRoles'
 
 const INITIAL_FORM_STATE = {
   codigo: '',
@@ -352,18 +359,33 @@ function App() {
   // Estado de Autenticación
   const [session, setSession] = useState(null)
   const [authChecking, setAuthChecking] = useState(true)
-  // Rol del usuario: administrador, visualizador u operador tablet (Extrusión, Soplado, Inyección)
+  // Rol y permisos del usuario
   const userRole = getUserRole(session?.user)
   const isAdmin = userRole === 'admin'
   const isOperator = isOperatorRole(userRole)
   const operatorArea = getOperatorArea(userRole, session?.user)
+  const userAllowedArea = getUserAllowedArea(session?.user)
+  const allowedViews = useMemo(() => getUserAllowedViews(session?.user), [session?.user])
+  const userDisplay = useMemo(() => getUserDisplayInfo(session?.user), [session?.user])
 
-  // Modo Operador (Tablet): forzar navegación exclusiva a Mantenimiento Preventivo
+  // Helper para consultar si una vista está autorizada
+  const isViewAllowed = (view) => allowedViews.includes('*') || allowedViews.includes(view)
+
+  // Control estricto de navegación según permisos de vistas
   useEffect(() => {
+    if (!session?.user) return
+    if (allowedViews.includes('*')) return
+
     if (isOperator && activeView !== 'mantenimiento-preventivo') {
       setActiveView('mantenimiento-preventivo')
+      return
     }
-  }, [isOperator, activeView])
+
+    if (!isViewAllowed(activeView)) {
+      const fallbackView = allowedViews[0] || 'ordenes-trabajo'
+      setActiveView(fallbackView)
+    }
+  }, [session?.user, allowedViews, isOperator, activeView])
   
   // Estados para Login
   const [loginEmail, setLoginEmail] = useState('')
@@ -953,6 +975,12 @@ function App() {
         const targetRole = getUserRole({ email: correo })
         if (isOperatorRole(targetRole)) {
           setActiveView('mantenimiento-preventivo')
+        } else if (
+          targetRole === 'visor_ot_plasticos' ||
+          targetRole === 'visor_ot_jjv' ||
+          targetRole === 'supervisor_plasticos'
+        ) {
+          setActiveView('ordenes-trabajo')
         } else {
           setActiveView('home')
         }
@@ -2808,195 +2836,239 @@ function App() {
           ) : (
             <>
           {/* GRUPO 1: GENERAL */}
-          <div className="nav-section">
-            <h3 className="nav-section-title">General</h3>
-            <ul className="nav-list">
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'home' ? 'active' : ''}`}
-                  onClick={() => setActiveView('home')}
-                >
-                  <span className="nav-item-icon"><Icon n="home" /></span>
-                  <span>Inicio</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
-                  onClick={() => setActiveView('dashboard')}
-                >
-                  <span className="nav-item-icon"><Icon n="chart" /></span>
-                  <span>Dashboard</span>
-                </button>
-              </li>
-            </ul>
-          </div>
+          {(isViewAllowed('home') || isViewAllowed('dashboard')) && (
+            <div className="nav-section">
+              <h3 className="nav-section-title">General</h3>
+              <ul className="nav-list">
+                {isViewAllowed('home') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'home' ? 'active' : ''}`}
+                      onClick={() => setActiveView('home')}
+                    >
+                      <span className="nav-item-icon"><Icon n="home" /></span>
+                      <span>Inicio</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('dashboard') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
+                      onClick={() => setActiveView('dashboard')}
+                    >
+                      <span className="nav-item-icon"><Icon n="chart" /></span>
+                      <span>Dashboard</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {/* GRUPO 2: MANTENIMIENTO */}
-          <div className="nav-section">
-            <h3 className="nav-section-title">Mantenimiento</h3>
-            <ul className="nav-list">
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'ordenes-trabajo' ? 'active' : ''}`}
-                  onClick={() => setActiveView('ordenes-trabajo')}
-                >
-                  <span className="nav-item-icon"><Icon n="list" /></span>
-                  <span>Órdenes de Trabajo</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'solicitud-mantenimiento' ? 'active' : ''}`}
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  title="Abrir formulario de Solicitud de Mantenimiento (/solicitud-mantenimiento)"
-                >
-                  <span className="nav-item-icon"><Icon n="tools" /></span>
-                  <span>Solicitud de Mantenimiento</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'mantenimiento-preventivo' ? 'active' : ''}`}
-                  onClick={() => setActiveView('mantenimiento-preventivo')}
-                >
-                  <span className="nav-item-icon"><Icon n="calendar-check" /></span>
-                  <span>Mantenimiento Preventivo</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'disponibilidad' ? 'active' : ''}`}
-                  onClick={() => setActiveView('disponibilidad')}
-                >
-                  <span className="nav-item-icon"><Icon n="chart" /></span>
-                  <span>Disponibilidad KPI</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'bitacora' ? 'active' : ''}`}
-                  onClick={() => {
-                    setBitacoraSuccessMessage('')
-                    setBitacoraError('')
-                    setActiveView('bitacora')
-                  }}
-                >
-                  <span className="nav-item-icon"><Icon n="book" /></span>
-                  <span>Bitácora</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'arbol-activos' ? 'active' : ''}`}
-                  onClick={() => setActiveView('arbol-activos')}
-                >
-                  <span className="nav-item-icon"><Icon n="tree" /></span>
-                  <span>Árbol de Activos</span>
-                </button>
-              </li>
-            </ul>
-          </div>
+          {(isViewAllowed('ordenes-trabajo') ||
+            isViewAllowed('solicitud-mantenimiento') ||
+            isViewAllowed('mantenimiento-preventivo') ||
+            isViewAllowed('disponibilidad') ||
+            isViewAllowed('bitacora') ||
+            isViewAllowed('arbol-activos')) && (
+            <div className="nav-section">
+              <h3 className="nav-section-title">Mantenimiento</h3>
+              <ul className="nav-list">
+                {isViewAllowed('ordenes-trabajo') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'ordenes-trabajo' ? 'active' : ''}`}
+                      onClick={() => setActiveView('ordenes-trabajo')}
+                    >
+                      <span className="nav-item-icon"><Icon n="list" /></span>
+                      <span>Órdenes de Trabajo {userAllowedArea ? `· ${userAllowedArea}` : ''}</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('solicitud-mantenimiento') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'solicitud-mantenimiento' ? 'active' : ''}`}
+                      onClick={() => setActiveView('solicitud-mantenimiento')}
+                      title="Abrir formulario de Solicitud de Mantenimiento (/solicitud-mantenimiento)"
+                    >
+                      <span className="nav-item-icon"><Icon n="tools" /></span>
+                      <span>Solicitud de Mantenimiento</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('mantenimiento-preventivo') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'mantenimiento-preventivo' ? 'active' : ''}`}
+                      onClick={() => setActiveView('mantenimiento-preventivo')}
+                    >
+                      <span className="nav-item-icon"><Icon n="calendar-check" /></span>
+                      <span>Mantenimiento Preventivo</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('disponibilidad') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'disponibilidad' ? 'active' : ''}`}
+                      onClick={() => setActiveView('disponibilidad')}
+                    >
+                      <span className="nav-item-icon"><Icon n="chart" /></span>
+                      <span>Disponibilidad KPI</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('bitacora') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'bitacora' ? 'active' : ''}`}
+                      onClick={() => {
+                        setBitacoraSuccessMessage('')
+                        setBitacoraError('')
+                        setActiveView('bitacora')
+                      }}
+                    >
+                      <span className="nav-item-icon"><Icon n="book" /></span>
+                      <span>Bitácora</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('arbol-activos') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'arbol-activos' ? 'active' : ''}`}
+                      onClick={() => setActiveView('arbol-activos')}
+                    >
+                      <span className="nav-item-icon"><Icon n="tree" /></span>
+                      <span>Árbol de Activos</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {/* GRUPO 3: INVENTARIO */}
-          <div className="nav-section">
-            <h3 className="nav-section-title">Inventario</h3>
-            <ul className="nav-list">
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'dashboard-inventario' ? 'active' : ''}`}
-                  onClick={() => setActiveView('dashboard-inventario')}
-                >
-                  <span className="nav-item-icon"><Icon n="box" /></span>
-                  <span>Inventario General</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'repuestos' ? 'active' : ''}`}
-                  onClick={handleCancel}
-                >
-                  <span className="nav-item-icon"><Icon n="box" /></span>
-                  <span>Repuestos</span>
-                </button>
-              </li>
-              {isAdmin && (<li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'nuevo-repuesto' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (session) {
-                      setFormData(INITIAL_FORM_STATE)
-                      setErrors({})
-                      setSuccessMessage('')
-                      setServerError('')
-                      setIsSaved(false)
-                      setActiveView('nuevo-repuesto')
-                    } else {
-                      setLoginError('Inicie sesión para registrar un nuevo repuesto.')
-                      setActiveView('login')
-                    }
-                  }}
-                >
-                  <span className="nav-item-icon"><Icon n="plus" /></span>
-                  <span>Nuevo Repuesto</span>
-                </button>
-              </li>)}
-              {isAdmin && (<li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'retiro' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (session) {
-                      setRetiroErrors({})
-                      setRetiroSuccess('')
-                      setRetiroServerError('')
-                      setActiveView('retiro')
-                    } else {
-                      setLoginError('Inicie sesión para registrar retiros de repuestos.')
-                      setActiveView('login')
-                    }
-                  }}
-                >
-                  <span className="nav-item-icon"><Icon n="out" /></span>
-                  <span>Retiro de Repuestos</span>
-                </button>
-              </li>)}
-            </ul>
-          </div>
+          {(isViewAllowed('dashboard-inventario') ||
+            isViewAllowed('repuestos') ||
+            (isAdmin && (isViewAllowed('nuevo-repuesto') || isViewAllowed('retiro')))) && (
+            <div className="nav-section">
+              <h3 className="nav-section-title">Inventario</h3>
+              <ul className="nav-list">
+                {isViewAllowed('dashboard-inventario') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'dashboard-inventario' ? 'active' : ''}`}
+                      onClick={() => setActiveView('dashboard-inventario')}
+                    >
+                      <span className="nav-item-icon"><Icon n="box" /></span>
+                      <span>Inventario General</span>
+                    </button>
+                  </li>
+                )}
+                {isViewAllowed('repuestos') && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'repuestos' ? 'active' : ''}`}
+                      onClick={handleCancel}
+                    >
+                      <span className="nav-item-icon"><Icon n="box" /></span>
+                      <span>Repuestos</span>
+                    </button>
+                  </li>
+                )}
+                {isAdmin && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'nuevo-repuesto' ? 'active' : ''}`}
+                      onClick={() => {
+                        if (session) {
+                          setFormData(INITIAL_FORM_STATE)
+                          setErrors({})
+                          setSuccessMessage('')
+                          setServerError('')
+                          setIsSaved(false)
+                          setActiveView('nuevo-repuesto')
+                        } else {
+                          setLoginError('Inicie sesión para registrar un nuevo repuesto.')
+                          setActiveView('login')
+                        }
+                      }}
+                    >
+                      <span className="nav-item-icon"><Icon n="plus" /></span>
+                      <span>Nuevo Repuesto</span>
+                    </button>
+                  </li>
+                )}
+                {isAdmin && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`nav-item ${activeView === 'retiro' ? 'active' : ''}`}
+                      onClick={() => {
+                        if (session) {
+                          setRetiroErrors({})
+                          setRetiroSuccess('')
+                          setRetiroServerError('')
+                          setActiveView('retiro')
+                        } else {
+                          setLoginError('Inicie sesión para registrar retiros de repuestos.')
+                          setActiveView('login')
+                        }
+                      }}
+                    >
+                      <span className="nav-item-icon"><Icon n="out" /></span>
+                      <span>Retiro de Repuestos</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {/* GRUPO 4: COMPRAS */}
-          <div className="nav-section">
-            <h3 className="nav-section-title">Compras</h3>
-            <ul className="nav-list">
-              <li>
-                <button
-                  type="button"
-                  className={`nav-item ${activeView === 'compras' ? 'active' : ''}`}
-                  onClick={() => setActiveView('compras')}
-                >
-                  <span className="nav-item-icon"><Icon n="cart" /></span>
-                  <span>Compras</span>
-                </button>
-              </li>
-            </ul>
-          </div>
-        {isAdmin && (
+          {isViewAllowed('compras') && (
+            <div className="nav-section">
+              <h3 className="nav-section-title">Compras</h3>
+              <ul className="nav-list">
+                <li>
+                  <button
+                    type="button"
+                    className={`nav-item ${activeView === 'compras' ? 'active' : ''}`}
+                    onClick={() => setActiveView('compras')}
+                  >
+                    <span className="nav-item-icon"><Icon n="cart" /></span>
+                    <span>Compras</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          )}
+
+          {isAdmin && (
             <div className="nav-section">
               <h3 className="nav-section-title">Administración</h3>
               <ul className="nav-list">
                 <li>
-                  <button type="button" className={`nav-item ${activeView === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveView('usuarios')}>
+                  <button
+                    type="button"
+                    className={`nav-item ${activeView === 'usuarios' ? 'active' : ''}`}
+                    onClick={() => setActiveView('usuarios')}
+                  >
                     <span className="nav-item-icon"><Icon n="user" /></span>
                     <span>Usuarios y roles</span>
                   </button>
@@ -3013,9 +3085,9 @@ function App() {
           {session ? (
             <>
               <div className="user-badge">
-                <span className="user-role">{isAdmin ? 'Administrador' : isOperator ? `Operador ${operatorArea || 'Tablet'}` : 'Visualizador'}</span>
+                <span className="user-role">{userDisplay.badge}</span>
                 <span className="user-email" title={session.user.email}>
-                  {session.user.email}
+                  {userDisplay.name ? `${userDisplay.name} (${session.user.email})` : session.user.email}
                 </span>
               </div>
               <button
@@ -3072,193 +3144,211 @@ function App() {
             <section className="content-body home-content-body">
               <div className="home-modules-grid">
                 {/* 1. ÓRDENES DE TRABAJO */}
-                <div
-                  className="home-module-card"
-                  onClick={() => setActiveView('ordenes-trabajo')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('ordenes-trabajo')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-ot">
-                      <span className="home-card-icon"><Icon n="tools" /></span>
+                {isViewAllowed('ordenes-trabajo') && (
+                  <div
+                    className="home-module-card"
+                    onClick={() => setActiveView('ordenes-trabajo')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('ordenes-trabajo')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-ot">
+                        <span className="home-card-icon"><Icon n="tools" /></span>
+                      </div>
+                      <span className="home-card-badge badge-dev">
+                        {userAllowedArea ? `Área ${userAllowedArea}` : 'En desarrollo'}
+                      </span>
                     </div>
-                    <span className="home-card-badge badge-dev">En desarrollo</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">
+                        Órdenes de Trabajo {userAllowedArea ? `(${userAllowedArea})` : ''}
+                      </h3>
+                      <p className="home-card-desc">
+                        Tablero Kanban móvil y desktop sincronizado con ficha de OT, control de estados en tiempo real y auditoría.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Órdenes de Trabajo</h3>
-                    <p className="home-card-desc">
-                      Tablero Kanban móvil y desktop sincronizado con ficha de OT, control de estados en tiempo real y auditoría.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 2. ÁRBOL DE ACTIVOS */}
-                <div
-                  className="home-module-card"
-                  onClick={() => setActiveView('arbol-activos')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('arbol-activos')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-activos">
-                      <span className="home-card-icon"><Icon n="tree" /></span>
+                {isViewAllowed('arbol-activos') && (
+                  <div
+                    className="home-module-card"
+                    onClick={() => setActiveView('arbol-activos')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('arbol-activos')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-activos">
+                        <span className="home-card-icon"><Icon n="tree" /></span>
+                      </div>
+                      <span className="home-card-badge badge-preview">Estructura</span>
                     </div>
-                    <span className="home-card-badge badge-preview">Estructura</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">Árbol de Activos</h3>
+                      <p className="home-card-desc">
+                        Visualización jerárquica de equipos, máquinas y componentes de planta.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Árbol de Activos</h3>
-                    <p className="home-card-desc">
-                      Visualización jerárquica de equipos, máquinas y componentes de planta.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 3. INVENTARIO GENERAL DE REPUESTOS */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('dashboard')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('dashboard')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-inventario">
-                      <span className="home-card-icon"><Icon n="box" /></span>
+                {isViewAllowed('dashboard') && (
+                  <div
+                    className="home-module-card card-active-module"
+                    onClick={() => setActiveView('dashboard')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('dashboard')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-inventario">
+                        <span className="home-card-icon"><Icon n="box" /></span>
+                      </div>
+                      <span className="home-card-badge badge-active">Módulo Activo</span>
                     </div>
-                    <span className="home-card-badge badge-active">Módulo Activo</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">Inventario General de Repuestos</h3>
+                      <p className="home-card-desc">
+                        Stock disponible, valorización, movimientos, retiros y control de repuestos.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Inventario General de Repuestos</h3>
-                    <p className="home-card-desc">
-                      Stock disponible, valorización, movimientos, retiros y control de repuestos.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 4. COMPRAS */}
-                <div
-                  className="home-module-card"
-                  onClick={() => setActiveView('compras')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('compras')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-compras">
-                      <span className="home-card-icon"><Icon n="cart" /></span>
+                {isViewAllowed('compras') && (
+                  <div
+                    className="home-module-card"
+                    onClick={() => setActiveView('compras')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('compras')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-compras">
+                        <span className="home-card-icon"><Icon n="cart" /></span>
+                      </div>
+                      <span className="home-card-badge badge-dev">En desarrollo</span>
                     </div>
-                    <span className="home-card-badge badge-dev">En desarrollo</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">Compras</h3>
+                      <p className="home-card-desc">
+                        Solicitudes, cotizaciones, órdenes de compra, proveedores y seguimiento de adquisiciones.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Compras</h3>
-                    <p className="home-card-desc">
-                      Solicitudes, cotizaciones, órdenes de compra, proveedores y seguimiento de adquisiciones.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 5. MANTENIMIENTO PREVENTIVO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('mantenimiento-preventivo')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('mantenimiento-preventivo')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-preventivo">
-                      <span className="home-card-icon"><Icon n="calendar-check" /></span>
+                {isViewAllowed('mantenimiento-preventivo') && (
+                  <div
+                    className="home-module-card card-active-module"
+                    onClick={() => setActiveView('mantenimiento-preventivo')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('mantenimiento-preventivo')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-preventivo">
+                        <span className="home-card-icon"><Icon n="calendar-check" /></span>
+                      </div>
+                      <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
                     </div>
-                    <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">Mantenimiento Preventivo</h3>
+                      <p className="home-card-desc">
+                        Planificación, ejecución y seguimiento del mantenimiento preventivo de equipos.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Mantenimiento Preventivo</h3>
-                    <p className="home-card-desc">
-                      Planificación, ejecución y seguimiento del mantenimiento preventivo de equipos.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 6. KPI DE DISPONIBILIDAD */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('disponibilidad')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('disponibilidad')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap icon-disponibilidad">
-                      <span className="home-card-icon"><Icon n="chart" /></span>
+                {isViewAllowed('disponibilidad') && (
+                  <div
+                    className="home-module-card card-active-module"
+                    onClick={() => setActiveView('disponibilidad')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('disponibilidad')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap icon-disponibilidad">
+                        <span className="home-card-icon"><Icon n="chart" /></span>
+                      </div>
+                      <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
                     </div>
-                    <span className="home-card-badge badge-active">MÓDULO ACTIVO</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">KPI de Disponibilidad</h3>
+                      <p className="home-card-desc">
+                        Consolidación de tiempos de producción, detenciones por falla o mantenimiento y cálculo de disponibilidad por activo.
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Ingresar <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">KPI de Disponibilidad</h3>
-                    <p className="home-card-desc">
-                      Consolidación de tiempos de producción, detenciones por falla o mantenimiento y cálculo de disponibilidad por activo.
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Ingresar <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 {/* 7. SOLICITUD DE MANTENIMIENTO */}
-                <div
-                  className="home-module-card card-active-module"
-                  onClick={() => setActiveView('solicitud-mantenimiento')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
-                >
-                  <div className="home-card-header">
-                    <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
-                      <span className="home-card-icon"><Icon n="tools" /></span>
+                {isViewAllowed('solicitud-mantenimiento') && (
+                  <div
+                    className="home-module-card card-active-module"
+                    onClick={() => setActiveView('solicitud-mantenimiento')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveView('solicitud-mantenimiento')}
+                  >
+                    <div className="home-card-header">
+                      <div className="home-card-icon-wrap" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
+                        <span className="home-card-icon"><Icon n="tools" /></span>
+                      </div>
+                      <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
                     </div>
-                    <span className="home-card-badge badge-active">LINK PÚBLICO / QR</span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
+                      <p className="home-card-desc">
+                        Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
+                      </p>
+                    </div>
+                    <div className="home-card-footer">
+                      <span className="home-card-action">
+                        Abrir Ventana <span className="arrow">→</span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="home-card-body">
-                    <h3 className="home-card-title">Solicitud de Mantenimiento</h3>
-                    <p className="home-card-desc">
-                      Ventana para levantar fallas, requerimientos y paradas operacionales desde planta (/solicitud-mantenimiento).
-                    </p>
-                  </div>
-                  <div className="home-card-footer">
-                    <span className="home-card-action">
-                      Abrir Ventana <span className="arrow">→</span>
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             </section>
           </>
