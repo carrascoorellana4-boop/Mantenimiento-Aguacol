@@ -627,3 +627,224 @@ export function consolidarKpisDisponibilidad(registros = []) {
     equipoMenorDisp: porEquipo.length > 0 ? porEquipo[porEquipo.length - 1] : null,
   }
 }
+
+/**
+ * Consulta las Órdenes de Trabajo que reportan tiempos de detención o línea detenida
+ */
+export async function fetchOtsConTiempoDetencion() {
+  try {
+    const { data, error } = await supabase
+      .from('orden_trabajo')
+      .select(`
+        id,
+        numero_ot,
+        codigo_ot,
+        equipo_id,
+        equipo_solicitado,
+        ubicacion,
+        area,
+        trabajo,
+        tecnico,
+        estado,
+        condicion_linea,
+        tiempo_detencion_minutos,
+        fecha_reporte,
+        fecha_hora_inicio_trabajo,
+        fecha_hora_fin_trabajo,
+        solicitante_nombre,
+        solicitante_area,
+        kpi_validado,
+        kpi_validado_el,
+        kpi_validado_por,
+        kpi_omitido,
+        kpi_horas_aprobadas,
+        kpi_registro_id,
+        equipo:equipo_id (
+          id,
+          codigo,
+          nombre,
+          area
+        )
+      `)
+      .or('tiempo_detencion_minutos.gt.0,condicion_linea.ilike.%detenida%')
+      .order('id', { ascending: false })
+
+    if (error) {
+      console.warn('Error fetching OTs con tiempo de detención:', error)
+      return []
+    }
+
+    return (data || []).map((ot) => {
+      let minutos = Number(ot.tiempo_detencion_minutos) || 0
+      if (!minutos && ot.fecha_hora_inicio_trabajo && ot.fecha_hora_fin_trabajo) {
+        try {
+          const ini = new Date(ot.fecha_hora_inicio_trabajo).getTime()
+          const fin = new Date(ot.fecha_hora_fin_trabajo).getTime()
+          if (!isNaN(ini) && !isNaN(fin) && fin > ini) {
+            minutos = Math.round((fin - ini) / (1000 * 60))
+          }
+        } catch {}
+      }
+
+      const horasDefecto = minutos > 0 ? Number((minutos / 60).toFixed(2)) : 0
+      const horasAprobadas = ot.kpi_horas_aprobadas !== null && ot.kpi_horas_aprobadas !== undefined
+        ? Number(ot.kpi_horas_aprobadas)
+        : horasDefecto
+
+      const equipoNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo no especificado'
+      const equipoCodigo = ot.equipo?.codigo || ''
+      const area = ot.equipo?.area || ot.area || ot.solicitante_area || 'Producción'
+
+      return {
+        ...ot,
+        minutos_calculados: minutos,
+        horas_defecto: horasDefecto,
+        horas_aprobadas: horasAprobadas,
+        equipo_display: equipoNombre,
+        equipo_codigo_display: equipoCodigo,
+        area_display: area,
+      }
+    })
+  } catch (err) {
+    console.error('Excepción al consultar OTs con tiempo de detención:', err)
+    return []
+  }
+}
+
+/**
+ * Valida un tiempo de detención de una OT e inserta un registro formal en registro_disponibilidad
+ */
+export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usuario }) {
+  if (!ot?.id) throw new Error('OT inválida')
+
+  const horas = Math.max(0, Number(parseFloat(horasValidadas !== undefined && horasValidadas !== null ? horasValidadas : ot.horas_defecto || 0).toFixed(2)))
+  const fechaEfectiva = fecha || (ot.fecha_reporte ? String(ot.fecha_reporte).slice(0, 10) : new Date().toISOString().slice(0, 10))
+  const nuevoRegistroId = crypto.randomUUID ? crypto.randomUUID() : `ot-kpi-${Date.now()}`
+
+  // Resolver código y nombre oficial del equipo
+  let eqCodigo = ot.equipo?.codigo || ''
+  let eqNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo en planta'
+  let eqArea = ot.equipo?.area || ot.area || 'Producción'
+
+  if (!eqCodigo) {
+    const norm = normalizeEquipoKey(eqNombre)
+    if (MAPA_ALIAS_EQUIPOS[norm]) {
+      eqCodigo = MAPA_ALIAS_EQUIPOS[norm].codigo
+      eqNombre = MAPA_ALIAS_EQUIPOS[norm].nombre
+      eqArea = MAPA_ALIAS_EQUIPOS[norm].area
+    } else {
+      eqCodigo = 'EQ-PLANTA'
+    }
+  }
+
+  const codOt = ot.codigo_ot || (ot.numero_ot ? `OT-${String(ot.numero_ot).padStart(6, '0')}` : `OT-${ot.id}`)
+
+  // 1. Insertar registro en registro_disponibilidad
+  const nuevoRegistro = {
+    id: nuevoRegistroId,
+    fecha: fechaEfectiva,
+    equipo_id: ot.equipo_id || null,
+    codigo_equipo: eqCodigo,
+    nombre_equipo: eqNombre,
+    area: eqArea,
+    linea: null,
+    horas_disponibles: 0,
+    horas_mantencion: horas,
+    horas_efectivas_mantenimiento: horas,
+    turnos_produccion: 0,
+    turnos_mantencion: Number((horas / 8).toFixed(2)),
+    disponibilidad_pct: 0,
+    tipo_detencion: 'Falla / Mantenimiento Correctivo (OT)',
+    motivo: `${codOt}: ${ot.trabajo || 'Detención de línea validada'}`,
+    turno: 'Turno mantenimiento',
+    observaciones: `Validado por ${usuario || 'Administrador'}. Tiempo detenido reportado: ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min. Solicitante: ${ot.solicitante_nombre || 'Planta'}.`,
+    origen_importacion: `Validación ${codOt}`,
+    registrado_por: usuario || 'Administrador',
+    cobertura: 'Validada'
+  }
+
+  const { data: regInsertado, error: errInsert } = await supabase
+    .from('registro_disponibilidad')
+    .insert([nuevoRegistro])
+    .select('*')
+    .single()
+
+  if (errInsert) {
+    console.error('Error insertando en registro_disponibilidad:', errInsert)
+    throw new Error('Error al registrar indisponibilidad en la base de datos: ' + errInsert.message)
+  }
+
+  // 2. Actualizar la orden de trabajo con el estado validado
+  const regId = regInsertado?.id || nuevoRegistroId
+  const { error: errUpdate } = await supabase
+    .from('orden_trabajo')
+    .update({
+      kpi_validado: true,
+      kpi_omitido: false,
+      kpi_validado_el: new Date().toISOString(),
+      kpi_validado_por: usuario || 'Administrador',
+      kpi_horas_aprobadas: horas,
+      kpi_registro_id: regId
+    })
+    .eq('id', ot.id)
+
+  if (errUpdate) {
+    console.error('Error actualizando orden_trabajo:', errUpdate)
+  }
+
+  return { success: true, registro: regInsertado || nuevoRegistro }
+}
+
+/**
+ * Omite el tiempo de detención de una OT para que no compute en los KPI
+ */
+export async function omitirTiempoDetencionOt({ otId, usuario }) {
+  if (!otId) throw new Error('ID de OT requerido')
+
+  const { error } = await supabase
+    .from('orden_trabajo')
+    .update({
+      kpi_validado: false,
+      kpi_omitido: true,
+      kpi_validado_el: new Date().toISOString(),
+      kpi_validado_por: usuario || 'Administrador',
+      kpi_horas_aprobadas: 0
+    })
+    .eq('id', otId)
+
+  if (error) {
+    throw new Error('Error al omitir tiempo de OT: ' + error.message)
+  }
+
+  return { success: true }
+}
+
+/**
+ * Revierte la validación u omisión de una OT y elimina el registro de disponibilidad asociado si existía
+ */
+export async function revertirValidacionOt({ otId, registroId }) {
+  if (!otId) throw new Error('ID de OT requerido')
+
+  if (registroId) {
+    await supabase.from('registro_disponibilidad').delete().eq('id', registroId)
+  }
+
+  const { error } = await supabase
+    .from('orden_trabajo')
+    .update({
+      kpi_validado: false,
+      kpi_omitido: false,
+      kpi_validado_el: null,
+      kpi_validado_por: null,
+      kpi_horas_aprobadas: null,
+      kpi_registro_id: null
+    })
+    .eq('id', otId)
+
+  if (error) {
+    throw new Error('Error al revertir validación: ' + error.message)
+  }
+
+  return { success: true }
+}
+

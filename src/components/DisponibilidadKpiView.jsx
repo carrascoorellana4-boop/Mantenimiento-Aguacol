@@ -25,6 +25,10 @@ import {
   eliminarRegistroDisponibilidad,
   parseExcelProduccionFile,
   consolidarKpisDisponibilidad,
+  fetchOtsConTiempoDetencion,
+  validarTiempoDetencionOt,
+  omitirTiempoDetencionOt,
+  revertirValidacionOt,
 } from '../services/disponibilidadService'
 
 export default function DisponibilidadKpiView({ session = null, _session, isAdmin = false, equiposList = [], onBack }) {
@@ -36,7 +40,15 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
-  const [activeTab, setActiveTab] = useState('resumen') // 'resumen' | 'detalle'
+  const [activeTab, setActiveTab] = useState('resumen') // 'resumen' | 'periodos' | 'detalle' | 'criterios' | 'tiempos-ot'
+
+  // Validación de tiempos de detención de OTs (Exclusivo Administrador)
+  const [otsDetencion, setOtsDetencion] = useState([])
+  const [loadingOts, setLoadingOts] = useState(false)
+  const [filtroOtEstado, setFiltroOtEstado] = useState('pendientes') // 'pendientes' | 'validados' | 'omitidos' | 'todos'
+  const [searchOtQuery, setSearchOtQuery] = useState('')
+  const [horasEditadas, setHorasEditadas] = useState({})
+  const [accionOtLoading, setAccionOtLoading] = useState(null)
 
   // Filtros
   const [periodoVisual, setPeriodoVisual] = useState({
@@ -85,6 +97,126 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
   useEffect(() => {
     cargarRegistros()
   }, [])
+
+  // Cargar OTs con tiempos de detención para auditoría del administrador
+  const cargarOtsDetencion = async () => {
+    if (!isAdmin) return
+    setLoadingOts(true)
+    try {
+      const data = await fetchOtsConTiempoDetencion()
+      setOtsDetencion(data)
+    } catch (err) {
+      console.warn('Error cargando OTs con tiempo de detención:', err)
+    } finally {
+      setLoadingOts(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) {
+      cargarOtsDetencion()
+    }
+  }, [isAdmin])
+
+  const otsPendientesCount = useMemo(() => {
+    return otsDetencion.filter((ot) => !ot.kpi_validado && !ot.kpi_omitido).length
+  }, [otsDetencion])
+
+  const otsValidadosCount = useMemo(() => {
+    return otsDetencion.filter((ot) => ot.kpi_validado).length
+  }, [otsDetencion])
+
+  const otsOmitidosCount = useMemo(() => {
+    return otsDetencion.filter((ot) => ot.kpi_omitido).length
+  }, [otsDetencion])
+
+  const otsFiltradas = useMemo(() => {
+    let list = [...otsDetencion]
+
+    if (filtroOtEstado === 'pendientes') {
+      list = list.filter((ot) => !ot.kpi_validado && !ot.kpi_omitido)
+    } else if (filtroOtEstado === 'validados') {
+      list = list.filter((ot) => ot.kpi_validado)
+    } else if (filtroOtEstado === 'omitidos') {
+      list = list.filter((ot) => ot.kpi_omitido)
+    }
+
+    if (searchOtQuery.trim()) {
+      const q = searchOtQuery.toLowerCase().trim()
+      list = list.filter((ot) => {
+        const cod = (ot.codigo_ot || '').toLowerCase()
+        const eq = (ot.equipo_display || '').toLowerCase()
+        const trab = (ot.trabajo || '').toLowerCase()
+        const tec = (ot.tecnico || '').toLowerCase()
+        const sol = (ot.solicitante_nombre || '').toLowerCase()
+        return cod.includes(q) || eq.includes(q) || trab.includes(q) || tec.includes(q) || sol.includes(q)
+      })
+    }
+
+    return list
+  }, [otsDetencion, filtroOtEstado, searchOtQuery])
+
+  const handleValidarOt = async (ot) => {
+    const horasInput = horasEditadas[ot.id] !== undefined ? horasEditadas[ot.id] : ot.horas_defecto
+    const horasVal = Number(parseFloat(horasInput).toFixed(2))
+
+    if (isNaN(horasVal) || horasVal < 0) {
+      alert('Ingresa un valor válido de horas de detención (mayor o igual a 0).')
+      return
+    }
+
+    setAccionOtLoading(ot.id)
+    setErrorMsg('')
+    try {
+      await validarTiempoDetencionOt({
+        ot,
+        horasValidadas: horasVal,
+        usuario: currentSession?.user?.email || 'Administrador',
+      })
+      setSuccessMsg(`¡Tiempo de detención de ${ot.codigo_ot || 'la OT'} (${horasVal} h) validado e incorporado exitosamente al KPI de ${ot.equipo_display}!`)
+      await Promise.all([cargarOtsDetencion(), cargarRegistros()])
+    } catch (err) {
+      setErrorMsg('Error al validar tiempo de OT: ' + (err?.message || err))
+    } finally {
+      setAccionOtLoading(null)
+    }
+  }
+
+  const handleOmitirOt = async (ot) => {
+    if (!window.confirm(`¿Seguro que deseas omitir el tiempo de ${ot.codigo_ot || 'esta OT'} para que no impacte los KPI de disponibilidad?`)) return
+    setAccionOtLoading(ot.id)
+    setErrorMsg('')
+    try {
+      await omitirTiempoDetencionOt({
+        otId: ot.id,
+        usuario: currentSession?.user?.email || 'Administrador',
+      })
+      setSuccessMsg(`Tiempo de ${ot.codigo_ot || 'la OT'} omitido de los KPI.`)
+      await cargarOtsDetencion()
+    } catch (err) {
+      setErrorMsg('Error al omitir tiempo de OT: ' + (err?.message || err))
+    } finally {
+      setAccionOtLoading(null)
+    }
+  }
+
+  const handleRevertirOt = async (ot) => {
+    if (!window.confirm(`¿Revertir la validación de ${ot.codigo_ot || 'esta OT'}? Se retirará el registro de indisponibilidad y volverá a estado pendiente.`)) return
+    setAccionOtLoading(ot.id)
+    setErrorMsg('')
+    try {
+      await revertirValidacionOt({
+        otId: ot.id,
+        registroId: ot.kpi_registro_id,
+      })
+      setSuccessMsg(`Validación de ${ot.codigo_ot || 'la OT'} revertida. Volvió a estado pendiente.`)
+      await Promise.all([cargarOtsDetencion(), cargarRegistros()])
+    } catch (err) {
+      setErrorMsg('Error al revertir validación: ' + (err?.message || err))
+    } finally {
+      setAccionOtLoading(null)
+    }
+  }
 
   // Filtrado de registros
   const registrosFiltrados = useMemo(() => {
@@ -323,6 +455,51 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
         </div>
       )}
 
+      {/* NOTIFICACIÓN ADMINISTRADOR: TIEMPOS DE OT PENDIENTES */}
+      {isAdmin && otsPendientesCount > 0 && activeTab !== 'tiempos-ot' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.16), rgba(245, 158, 11, 0.06))',
+            border: '1px solid rgba(245, 158, 11, 0.45)',
+            borderRadius: '10px',
+            padding: '0.85rem 1.25rem',
+            color: '#fef3c7',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'rgba(245, 158, 11, 0.2)', padding: '0.4rem', borderRadius: '8px', display: 'flex' }}>
+              <Icon n="warn" size="1.3em" style={{ color: '#fbbf24' }} />
+            </div>
+            <div>
+              <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>
+                {otsPendientesCount} {otsPendientesCount === 1 ? 'Orden de Trabajo tiene tiempo' : 'Órdenes de Trabajo tienen tiempos'} de detención pendiente de validación
+              </strong>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                Como administrador, debes auditar y aprobar estos tiempos para que se computen en las horas de mantención y disponibilidad de cada máquina.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="disp-btn-secondary"
+            onClick={() => setActiveTab('tiempos-ot')}
+            style={{
+              borderColor: '#f59e0b',
+              color: '#fbbf24',
+              background: 'rgba(245, 158, 11, 0.15)',
+              fontWeight: 700,
+            }}
+          >
+            Revisar y Validar <Icon n="right" size="0.9em" />
+          </button>
+        </div>
+      )}
+
       {/* SELECTOR VISUAL DE PERÍODO (AÑO, MES, DÍAS) */}
       <SelectorPeriodoVisual
         availableYears={availableYears}
@@ -471,6 +648,32 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
         >
           <Icon n="shield" size="1em" /> Criterios y Cobertura
         </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className={`disp-tab-btn ${activeTab === 'tiempos-ot' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tiempos-ot')}
+            style={otsPendientesCount > 0 ? { borderColor: '#f59e0b', color: '#fbbf24' } : {}}
+          >
+            <Icon n="wrench" size="1em" />
+            Validación Tiempos OT
+            {otsPendientesCount > 0 && (
+              <span
+                style={{
+                  background: '#f59e0b',
+                  color: '#0f172a',
+                  fontWeight: 800,
+                  borderRadius: '999px',
+                  padding: '0.1rem 0.5rem',
+                  fontSize: '0.75rem',
+                  marginLeft: '4px',
+                }}
+              >
+                {otsPendientesCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -885,6 +1088,286 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* PESTAÑA 5: VALIDACIÓN DE TIEMPOS DE OT PARA KPI (EXCLUSIVO ADMINISTRADOR) */}
+          {isAdmin && activeTab === 'tiempos-ot' && (
+            <div className="disp-table-container">
+              <div className="kpi-ot-panel-header">
+                <div>
+                  <h3 className="kpi-ot-panel-title">
+                    <Icon n="shield" size="1.2em" style={{ color: '#38bdf8' }} />
+                    Validación de Tiempos Perdidos de OT para KPI
+                    <span
+                      style={{
+                        fontSize: '0.78rem',
+                        color: '#38bdf8',
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '999px',
+                        marginLeft: '0.5rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Exclusivo Administrador
+                    </span>
+                  </h3>
+                  <p className="kpi-ot-panel-desc">
+                    Audita y valida los tiempos de línea detenida reportados en las Órdenes de Trabajo antes de que computen como horas de mantención en la disponibilidad oficial de cada equipo.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <input
+                    type="search"
+                    className="disp-filter-input"
+                    style={{ width: '260px' }}
+                    placeholder="Buscar OT, equipo o trabajo..."
+                    value={searchOtQuery}
+                    onChange={(e) => setSearchOtQuery(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="disp-btn-secondary"
+                    onClick={cargarOtsDetencion}
+                    title="Recargar OTs"
+                    style={{ padding: '0.45rem 0.8rem' }}
+                  >
+                    <Icon n="sync" size="1em" /> Actualizar
+                  </button>
+                </div>
+              </div>
+
+              {/* Filtros por estado */}
+              <div className="kpi-ot-filter-pills">
+                <button
+                  type="button"
+                  className={`kpi-ot-pill-btn ${filtroOtEstado === 'pendientes' ? 'active' : ''}`}
+                  onClick={() => setFiltroOtEstado('pendientes')}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#fbbf24' }}></span>
+                  Pendientes de Validar
+                  <span className="kpi-ot-pill-count">{otsPendientesCount}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`kpi-ot-pill-btn ${filtroOtEstado === 'validados' ? 'active' : ''}`}
+                  onClick={() => setFiltroOtEstado('validados')}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399' }}></span>
+                  Validados e Incorporados
+                  <span className="kpi-ot-pill-count">{otsValidadosCount}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`kpi-ot-pill-btn ${filtroOtEstado === 'omitidos' ? 'active' : ''}`}
+                  onClick={() => setFiltroOtEstado('omitidos')}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#94a3b8' }}></span>
+                  Omitidos de KPI
+                  <span className="kpi-ot-pill-count">{otsOmitidosCount}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`kpi-ot-pill-btn ${filtroOtEstado === 'todos' ? 'active' : ''}`}
+                  onClick={() => setFiltroOtEstado('todos')}
+                >
+                  Todos
+                  <span className="kpi-ot-pill-count">{otsDetencion.length}</span>
+                </button>
+              </div>
+
+              {/* Tabla de OTs */}
+              {loadingOts ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                  <Icon n="wait" size="1.4em" /> Cargando órdenes de trabajo con tiempos de detención...
+                </div>
+              ) : otsFiltradas.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#94a3b8' }}>
+                  <Icon n="check" size="2em" style={{ color: '#34d399', marginBottom: '0.5rem' }} />
+                  <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: '#f1f5f9' }}>
+                    {filtroOtEstado === 'pendientes'
+                      ? '¡No hay tiempos de detención de OT pendientes de validación!'
+                      : 'No se encontraron registros con los filtros seleccionados.'}
+                  </p>
+                  <span style={{ fontSize: '0.85rem' }}>
+                    {filtroOtEstado === 'pendientes'
+                      ? 'Todos los tiempos reportados en las OT han sido validados o revisados.'
+                      : 'Prueba cambiando los filtros o el término de búsqueda.'}
+                  </span>
+                </div>
+              ) : (
+                <table className="disp-table">
+                  <thead>
+                    <tr>
+                      <th>OT / Fecha</th>
+                      <th>Máquina / Área</th>
+                      <th>Trabajo / Falla</th>
+                      <th style={{ textAlign: 'center' }}>Tiempo Reportado</th>
+                      <th style={{ textAlign: 'center' }}>Horas a Imputar</th>
+                      <th style={{ textAlign: 'center' }}>Estado KPI</th>
+                      <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {otsFiltradas.map((ot) => {
+                      const isProcessing = accionOtLoading === ot.id
+                      const horasActuales = horasEditadas[ot.id] !== undefined ? horasEditadas[ot.id] : ot.horas_defecto
+
+                      return (
+                        <tr key={ot.id}>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <strong style={{ color: '#38bdf8', fontSize: '0.92rem' }}>
+                                {ot.codigo_ot || `OT-${ot.numero_ot}`}
+                              </strong>
+                              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                {ot.fecha_reporte ? String(ot.fecha_reporte).slice(0, 10) : 'Sin fecha'}
+                              </span>
+                              {ot.solicitante_nombre && (
+                                <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                                  Por: {ot.solicitante_nombre}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <strong style={{ color: '#ffffff' }}>{ot.equipo_display}</strong>
+                              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                {ot.area_display} {ot.equipo_codigo_display ? `• ${ot.equipo_codigo_display}` : ''}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ maxWidth: '320px' }}>
+                              <p style={{ margin: 0, fontSize: '0.85rem', color: '#f1f5f9', fontWeight: 500 }}>
+                                {ot.trabajo || 'Sin descripción'}
+                              </p>
+                              <span style={{ fontSize: '0.75rem', color: '#f87171' }}>
+                                Condición: {ot.condicion_linea || 'Línea detenida'}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700, color: '#f87171', fontSize: '0.95rem' }}>
+                                {ot.minutos_calculados > 0 ? `${ot.minutos_calculados} min` : '0 min'}
+                              </span>
+                              <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                                ({ot.horas_defecto} h)
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {ot.kpi_validado ? (
+                              <span style={{ fontWeight: 800, color: '#34d399', fontSize: '1rem' }}>
+                                {Number(ot.kpi_horas_aprobadas || ot.horas_defecto).toFixed(2)} h
+                              </span>
+                            ) : ot.kpi_omitido ? (
+                              <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>0.00 h</span>
+                            ) : (
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="kpi-ot-input-horas"
+                                  value={horasActuales}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    setHorasEditadas((prev) => ({ ...prev, [ot.id]: val }))
+                                  }}
+                                />
+                                <span style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>h</span>
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {ot.kpi_validado ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <span className="kpi-ot-badge-status validado">
+                                  <Icon n="check" size="0.9em" /> Validado en KPI
+                                </span>
+                                {ot.kpi_validado_el && (
+                                  <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                                    {String(ot.kpi_validado_el).slice(0, 10)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : ot.kpi_omitido ? (
+                              <span className="kpi-ot-badge-status omitido">
+                                <Icon n="x" size="0.9em" /> Omitido de KPI
+                              </span>
+                            ) : (
+                              <span className="kpi-ot-badge-status pendiente">
+                                <Icon n="warn" size="0.9em" /> Pendiente
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', paddingRight: '1.5rem' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {!ot.kpi_validado && !ot.kpi_omitido && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="kpi-ot-btn-validar"
+                                    disabled={isProcessing}
+                                    onClick={() => handleValidarOt(ot)}
+                                    title="Aprobar tiempo e incorporar a la disponibilidad del equipo"
+                                  >
+                                    <Icon n={isProcessing ? 'wait' : 'check'} size="1em" />
+                                    {isProcessing ? 'Guardando...' : 'Validar a KPI'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="kpi-ot-btn-omitir"
+                                    disabled={isProcessing}
+                                    onClick={() => handleOmitirOt(ot)}
+                                    title="Omitir este tiempo para que no reste disponibilidad"
+                                  >
+                                    <Icon n="x" size="0.9em" /> Omitir
+                                  </button>
+                                </>
+                              )}
+
+                              {ot.kpi_validado && (
+                                <button
+                                  type="button"
+                                  className="kpi-ot-btn-revertir"
+                                  disabled={isProcessing}
+                                  onClick={() => handleRevertirOt(ot)}
+                                  title="Revertir validación y quitar del cálculo de KPI"
+                                >
+                                  <Icon n={isProcessing ? 'wait' : 'undo'} size="1em" />
+                                  {isProcessing ? 'Revirtiendo...' : 'Revertir'}
+                                </button>
+                              )}
+
+                              {ot.kpi_omitido && (
+                                <button
+                                  type="button"
+                                  className="kpi-ot-btn-revertir"
+                                  disabled={isProcessing}
+                                  onClick={() => handleRevertirOt(ot)}
+                                  title="Volver a poner esta OT en estado pendiente de validación"
+                                >
+                                  <Icon n={isProcessing ? 'wait' : 'sync'} size="1em" />
+                                  {isProcessing ? 'Reactivando...' : 'Reactivar'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </>
