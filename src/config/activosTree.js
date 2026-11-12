@@ -1241,6 +1241,19 @@ export const JERARQUIA_APROBADA = [
         descripcion: 'Sistema integral de iluminación y luminarias del Galpón de Cloro',
         hijos: []
       },
+      {
+        id: 'a16d3d07-4270-4c57-a174-86000c7e2edb',
+        codigo: 'AGL-JJV-CLORO-BAN-TRS',
+        nombre: 'Banco de trasvasije de cloro',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Cloro',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'Galpón de Cloro',
+        descripcion: 'Banco de trasvasije, llenado y trasvase de cloro',
+        hijos: []
+      },
 
       // 3.4 COCINA
       {
