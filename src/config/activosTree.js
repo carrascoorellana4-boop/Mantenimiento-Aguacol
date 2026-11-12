@@ -1228,6 +1228,19 @@ export const JERARQUIA_APROBADA = [
         ubicacion: 'Galpón de Cloro',
         hijos: []
       },
+      {
+        id: 'ec6d7814-0fcc-4647-9eed-8389c770acc9',
+        codigo: 'AGL-JJV-CLORO-ILU-01',
+        nombre: 'Sistema de iluminación Galpón Cloro',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Cloro',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Baja',
+        ubicacion: 'Galpón de Cloro',
+        descripcion: 'Sistema integral de iluminación y luminarias del Galpón de Cloro',
+        hijos: []
+      },
 
       // 3.4 COCINA
       {
@@ -1288,6 +1301,18 @@ export const JERARQUIA_APROBADA = [
         criticidad: 'Baja',
         ubicacion: 'AGUACOL → Servicios Generales (Referencia física: Galpón Soplado)',
         descripcion: 'Sistema integral de iluminación y luminarias del Galpón de Soplado',
+        hijos: []
+      },
+      {
+        id: 'act-iluminacion-galpon-cloro',
+        codigo: 'AGL-SSGG-ILU-CLORO-01',
+        nombre: 'Sistema de iluminación Galpón Cloro',
+        area: 'Servicios Generales',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Baja',
+        ubicacion: 'AGUACOL → Servicios Generales (Referencia física: Producción / JJV → Galpón de Cloro)',
+        descripcion: 'Sistema integral de iluminación y luminarias del Galpón de Cloro con referencia física en Producción / JJV → Galpón de Cloro',
         hijos: []
       },
       {
