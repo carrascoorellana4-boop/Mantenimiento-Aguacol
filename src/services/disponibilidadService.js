@@ -718,10 +718,29 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
   if (!ot?.id) throw new Error('OT inválida')
 
   const horas = Math.max(0, Number(parseFloat(horasValidadas !== undefined && horasValidadas !== null ? horasValidadas : ot.horas_defecto || 0).toFixed(2)))
-  const fechaEfectiva = fecha || (ot.fecha_reporte ? String(ot.fecha_reporte).slice(0, 10) : new Date().toISOString().slice(0, 10))
-  const nuevoRegistroId = crypto.randomUUID ? crypto.randomUUID() : `ot-kpi-${Date.now()}`
+  const userStr = usuario || 'Administrador'
 
-  // Resolver código y nombre oficial del equipo
+  // 1. Intentar primero mediante el RPC transaccional con SECURITY DEFINER (atómico y sin bloqueo de RLS)
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('validar_tiempo_detencion_ot', {
+      p_ot_id: ot.id,
+      p_horas: horas,
+      p_usuario: userStr
+    })
+
+    if (!rpcErr && rpcRes && rpcRes.ok) {
+      return { success: true, registro_id: rpcRes.registro_id }
+    }
+    if (rpcErr) {
+      console.warn('RPC validar_tiempo_detencion_ot no respondió, intentando inserción directa:', rpcErr.message)
+    }
+  } catch (errRpc) {
+    console.warn('Excepción al llamar RPC de validación:', errRpc.message)
+  }
+
+  // 2. Fallback: Operación directa con Supabase
+  const fechaEfectiva = fecha || (ot.fecha_reporte ? String(ot.fecha_reporte).slice(0, 10) : new Date().toISOString().slice(0, 10))
+
   let eqCodigo = ot.equipo?.codigo || ''
   let eqNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo en planta'
   let eqArea = ot.equipo?.area || ot.area || 'Producción'
@@ -739,9 +758,8 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
 
   const codOt = ot.codigo_ot || (ot.numero_ot ? `OT-${String(ot.numero_ot).padStart(6, '0')}` : `OT-${ot.id}`)
 
-  // 1. Insertar registro en registro_disponibilidad
+  // NOTA: No incluir 'disponibilidad_pct' porque es una columna GENERATED en PostgreSQL
   const nuevoRegistro = {
-    id: nuevoRegistroId,
     fecha: fechaEfectiva,
     equipo_id: ot.equipo_id || null,
     codigo_equipo: eqCodigo,
@@ -753,20 +771,26 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
     horas_efectivas_mantenimiento: horas,
     turnos_produccion: 0,
     turnos_mantencion: Number((horas / 8).toFixed(2)),
-    disponibilidad_pct: 0,
     tipo_detencion: 'Falla / Mantenimiento Correctivo (OT)',
     motivo: `${codOt}: ${ot.trabajo || 'Detención de línea validada'}`,
     turno: 'Turno mantenimiento',
-    observaciones: `Validado por ${usuario || 'Administrador'}. Tiempo detenido reportado: ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min. Solicitante: ${ot.solicitante_nombre || 'Planta'}.`,
+    observaciones: `Validado por ${userStr}. Tiempo detenido reportado: ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min. Solicitante: ${ot.solicitante_nombre || 'Planta'}.`,
     origen_importacion: `Validación ${codOt}`,
-    registrado_por: usuario || 'Administrador',
+    registrado_por: userStr,
     cobertura: 'Validada'
+  }
+
+  // Si la OT ya tenía un registro previo, eliminarlo para evitar duplicados
+  if (ot.kpi_registro_id) {
+    try {
+      await supabase.from('registro_disponibilidad').delete().eq('id', ot.kpi_registro_id)
+    } catch {}
   }
 
   const { data: regInsertado, error: errInsert } = await supabase
     .from('registro_disponibilidad')
     .insert([nuevoRegistro])
-    .select('*')
+    .select('id')
     .single()
 
   if (errInsert) {
@@ -774,25 +798,27 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
     throw new Error('Error al registrar indisponibilidad en la base de datos: ' + errInsert.message)
   }
 
-  // 2. Actualizar la orden de trabajo con el estado validado
-  const regId = regInsertado?.id || nuevoRegistroId
+  const regId = regInsertado?.id
+
+  // Actualizar la orden de trabajo
   const { error: errUpdate } = await supabase
     .from('orden_trabajo')
     .update({
       kpi_validado: true,
       kpi_omitido: false,
       kpi_validado_el: new Date().toISOString(),
-      kpi_validado_por: usuario || 'Administrador',
+      kpi_validado_por: userStr,
       kpi_horas_aprobadas: horas,
-      kpi_registro_id: regId
+      kpi_registro_id: regId || null
     })
     .eq('id', ot.id)
 
   if (errUpdate) {
     console.error('Error actualizando orden_trabajo:', errUpdate)
+    throw new Error('Error al actualizar estado en la orden de trabajo: ' + errUpdate.message)
   }
 
-  return { success: true, registro: regInsertado || nuevoRegistro }
+  return { success: true, registro_id: regId }
 }
 
 /**
@@ -800,14 +826,27 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
  */
 export async function omitirTiempoDetencionOt({ otId, usuario }) {
   if (!otId) throw new Error('ID de OT requerido')
+  const userStr = usuario || 'Administrador'
 
+  // 1. Intentar RPC
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('omitir_tiempo_detencion_ot', {
+      p_ot_id: otId,
+      p_usuario: userStr
+    })
+    if (!rpcErr && rpcRes && rpcRes.ok) {
+      return { success: true }
+    }
+  } catch {}
+
+  // 2. Fallback directo
   const { error } = await supabase
     .from('orden_trabajo')
     .update({
       kpi_validado: false,
       kpi_omitido: true,
       kpi_validado_el: new Date().toISOString(),
-      kpi_validado_por: usuario || 'Administrador',
+      kpi_validado_por: userStr,
       kpi_horas_aprobadas: 0
     })
     .eq('id', otId)
@@ -825,8 +864,21 @@ export async function omitirTiempoDetencionOt({ otId, usuario }) {
 export async function revertirValidacionOt({ otId, registroId }) {
   if (!otId) throw new Error('ID de OT requerido')
 
+  // 1. Intentar RPC
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('revertir_validacion_ot', {
+      p_ot_id: otId
+    })
+    if (!rpcErr && rpcRes && rpcRes.ok) {
+      return { success: true }
+    }
+  } catch {}
+
+  // 2. Fallback directo
   if (registroId) {
-    await supabase.from('registro_disponibilidad').delete().eq('id', registroId)
+    try {
+      await supabase.from('registro_disponibilidad').delete().eq('id', registroId)
+    } catch {}
   }
 
   const { error } = await supabase

@@ -1139,6 +1139,31 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
                 </div>
               </div>
 
+              {/* BANNERS DE ESTADO VISIBLES EN ESTA PESTAÑA */}
+              {errorMsg && (
+                <div style={{ padding: '0.75rem 1.5rem 0 1.5rem' }}>
+                  <div className="notice-banner notice-banner-error" role="alert" style={{ margin: 0 }}>
+                    <Icon n="warn" />
+                    <span>{errorMsg}</span>
+                    <button type="button" className="notice-banner-close" onClick={() => setErrorMsg('')}>
+                      <Icon n="x" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {successMsg && (
+                <div style={{ padding: '0.75rem 1.5rem 0 1.5rem' }}>
+                  <div className="notice-banner notice-banner-success" role="status" style={{ margin: 0 }}>
+                    <Icon n="check" />
+                    <span>{successMsg}</span>
+                    <button type="button" className="notice-banner-close" onClick={() => setSuccessMsg('')}>
+                      <Icon n="x" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Filtros por estado */}
               <div className="kpi-ot-filter-pills">
                 <button
