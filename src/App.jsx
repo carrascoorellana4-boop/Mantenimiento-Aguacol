@@ -3363,6 +3363,7 @@ function App() {
               setOrdenesList={setOrdenesTrabajoList}
               equiposList={equiposList}
               session={session}
+              isAdmin={isAdmin}
               storageMode={otStorageMode}
               realtimeStatus={otRealtimeStatus}
               initialLoading={otInitialLoading}

@@ -2,7 +2,7 @@ import Icon from './Icon'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { TECNICOS_BASE } from '../config/tecnicos'
 import { parseTecnicos } from '../lib/tecnicos'
-import { getUserAllowedArea, isOtInAllowedArea, isAreaMatching } from '../lib/authRoles'
+import { getUserAllowedArea, isOtInAllowedArea, isAreaMatching, getUserRole } from '../lib/authRoles'
 import {
   ESTADOS_OT,
   ORIGENES_OT,
@@ -16,7 +16,8 @@ import {
   formatDuracionTrabajo,
   formatMinutosLegible,
   fetchRepuestosDeOt,
-  consumirRepuestoEnOt
+  consumirRepuestoEnOt,
+  eliminarOrdenTrabajo
 } from '../services/ordenesTrabajoService'
 
 const formatFechaHoraCL = (val) => {
@@ -75,14 +76,19 @@ export default function OrdenesTrabajoView({
   repuestosList = [],
   onInventarioChange = () => {},
   session = null,
+  isAdmin = false,
   initialLoading = false,
   onNavigateToDashboard = () => {}
 }) {
-  // Solo el administrador puede crear o cambiar OT (la base lo exige igual).
-  const readOnly = session?.user?.role !== 'mant_admin'
+  const isUserAdmin = isAdmin || getUserRole(session?.user) === 'admin'
+  // Solo el administrador o mant_admin puede crear o cambiar OT (la base lo exige igual).
+  const readOnly = !isUserAdmin && session?.user?.role !== 'mant_admin'
   // Pestaña activa en vista móvil
   const [mobileActiveTab, setMobileActiveTab] = useState('Pendiente')
   const touchStartXRef = useRef(null)
+
+  // Estado de eliminación de OT
+  const [deletingOtId, setDeletingOtId] = useState(null)
 
   // Estado local de actualización por tarjeta individual (evita usar spinner global)
   const [updatingOtId, setUpdatingOtId] = useState(null)
@@ -607,6 +613,37 @@ export default function OrdenesTrabajoView({
     })
   }
 
+  // Eliminar OT (Exclusivo Administrador)
+  const handleEliminarOt = async (ot) => {
+    if (!ot?.id || deletingOtId) return
+    const cod = formatCodigoOt(ot)
+    const eqName = resolveOtEquipoDisplay(ot, equiposList).nombre || 'Sin equipo'
+    const trab = ot.trabajo || 'Sin descripción'
+
+    const confirmacion = window.confirm(
+      `¿Confirmas la eliminación permanente de la ${cod}?\n\n` +
+      `• Equipo: ${eqName}\n` +
+      `• Trabajo: ${trab}\n\n` +
+      `Esta acción no se puede deshacer y borrará la orden de trabajo, su historial y registros asociados.`
+    )
+    if (!confirmacion) return
+
+    setDeletingOtId(ot.id)
+    try {
+      await eliminarOrdenTrabajo(ot.id)
+      setOrdenesList((prev) => prev.filter((item) => item.id !== ot.id))
+      if (selectedOtId === ot.id) {
+        setSelectedOtId(null)
+      }
+      showToast(`Orden de trabajo ${cod} eliminada exitosamente.`, 'success')
+    } catch (err) {
+      console.error('Error al eliminar OT:', err)
+      showToast(`No fue posible eliminar la OT: ${err?.message || err}`, 'error')
+    } finally {
+      setDeletingOtId(null)
+    }
+  }
+
   // Consumir repuesto desde la Ficha de la OT
   const handleConsumirRepuestoFicha = async (e) => {
     e.preventDefault()
@@ -1058,6 +1095,23 @@ export default function OrdenesTrabajoView({
           >
             Ver OT
           </button>
+
+          {isUserAdmin && (
+            <button
+              type="button"
+              className="ot-card-btn ot-card-btn-eliminar"
+              data-testid={`btn-eliminar-${codigo}`}
+              disabled={deletingOtId === ot.id || isUpdatingCard}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEliminarOt(ot)
+              }}
+              title={`Eliminar permanentemente ${codigo}`}
+            >
+              <Icon n="trash" size="0.9em" />
+              {deletingOtId === ot.id ? '...' : 'Eliminar'}
+            </button>
+          )}
         </div>
       </article>
     )
@@ -1527,6 +1581,19 @@ export default function OrdenesTrabajoView({
                             }
                           >
                             Reabrir OT
+                          </button>
+                        )}
+                        {isUserAdmin && (
+                          <button
+                            type="button"
+                            className="ot-card-btn ot-card-btn-eliminar"
+                            data-testid="ficha-btn-eliminar"
+                            disabled={deletingOtId === selectedOt.id}
+                            onClick={() => handleEliminarOt(selectedOt)}
+                            title="Eliminar esta Orden de Trabajo permanentemente"
+                          >
+                            <Icon n="trash" size="0.95em" />
+                            {deletingOtId === selectedOt.id ? 'Eliminando OT...' : 'Eliminar OT'}
                           </button>
                         )}
                       </div>

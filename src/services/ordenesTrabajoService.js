@@ -1249,3 +1249,61 @@ export const consumirRepuestoEnOt = async ({ otId, repuestoId, cantidad, tecnico
   }
   return data
 }
+
+/**
+ * 8. Eliminar una Orden de Trabajo (Exclusivo Administrador)
+ * Limpia registros relacionados y sincroniza en tiempo real
+ */
+export const eliminarOrdenTrabajo = async (otId) => {
+  if (!otId) throw new Error('ID de OT inválido')
+
+  // 1. Intentar primero mediante RPC transaccional
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('eliminar_orden_trabajo', {
+      p_ot_id: otId
+    })
+
+    if (!rpcError && rpcData && rpcData.ok) {
+      // Eliminar de localStorage si existe
+      try {
+        const localList = loadLocalOrdenes()
+        const filtered = localList.filter((item) => item.id !== otId)
+        saveLocalOrdenes(filtered)
+      } catch {}
+
+      broadcastOtSyncEvent('DELETE', { id: otId })
+      return { success: true, otId, codigo: rpcData.codigo_ot }
+    }
+
+    if (rpcError) {
+      console.warn('RPC eliminar_orden_trabajo falló o no existe, intentando directo:', rpcError.message)
+    }
+  } catch (errRpc) {
+    console.warn('Excepción al invocar RPC eliminar_orden_trabajo:', errRpc)
+  }
+
+  // 2. Fallback: eliminación directa en public.orden_trabajo
+  try {
+    await supabase.from('orden_trabajo_estado_historial').delete().eq('ot_id', otId)
+    await supabase.from('orden_trabajo_repuesto').delete().eq('ot_id', otId)
+  } catch {}
+
+  const { error } = await supabase
+    .from('orden_trabajo')
+    .delete()
+    .eq('id', otId)
+
+  if (error) {
+    throw new Error('Error al eliminar la orden de trabajo: ' + (error.message || 'Error desconocido'))
+  }
+
+  // Limpiar respaldo local
+  try {
+    const localList = loadLocalOrdenes()
+    const filtered = localList.filter((item) => item.id !== otId)
+    saveLocalOrdenes(filtered)
+  } catch {}
+
+  broadcastOtSyncEvent('DELETE', { id: otId })
+  return { success: true, otId }
+}
