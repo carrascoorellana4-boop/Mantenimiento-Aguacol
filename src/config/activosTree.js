@@ -10,7 +10,7 @@
  *    - Refrigeración (Compresor AirHorse, Compresor NuAir, Chiller Extrusión 1 y 2, Chiller principal ANGES, Chiller secundario ANGES, Estanque de refrigeración de Extrusión, Bombas de refrigeración M1 a M5 e Inyectora 2).
  *    - Logística (Traspaleta 1, Traspaleta 2; modelo pendiente de confirmar).
  * 2. SOPLADO (Reemplaza oficialmente a PET; PET solo referencia histórica):
- *    - S1 (con Embolsadora PET), S2, Compresor Booster, Compresor PET, Chiller Soplado (compartido S1-S2), Moledora, Paletizadora.
+ *    - S1 (con Embolsadora PET), S2 (con Embandejadora), Compresor Booster, Compresor PET, Chiller Soplado (compartido S1-S2), Moledora, Paletizadora.
  * 3. PRODUCCIÓN / JJV:
  *    - Galpón de Producción: JJV Línea 1 a 9, Horno de producción (en Línea 3), Selladora de producción, Bomba sumergible Galpón de Producción.
  *    - Compresor, Estanques acumuladores de producto líquido, Desmineralizador (con Estanques de producción).
@@ -843,7 +843,21 @@ export const JERARQUIA_APROBADA = [
           refrigeradoPor: ['Chiller Soplado (Chiller compartido S1-S2)'],
           alimentadoPor: ['Compresor Booster', 'Compresor PET']
         },
-        hijos: []
+        hijos: [
+          {
+            id: 'act-s2-embandejadora',
+            codigo: 'AGL-SOP-S02-EMB',
+            nombre: 'Embandejadora',
+            area: 'Soplado',
+            tipo: 'hijo',
+            padreCodigo: 'S2',
+            padreNombre: 'S2',
+            padreId: 'act-s2',
+            estado: 'operativo',
+            criticidad: 'Media',
+            descripcion: 'Embandejadora perteneciente estructuralmente a S2 en Nave Soplado'
+          }
+        ]
       },
       {
         id: 'act-compresor-booster',
