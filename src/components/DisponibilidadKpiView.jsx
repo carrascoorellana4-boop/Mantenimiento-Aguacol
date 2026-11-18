@@ -1114,7 +1114,7 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
                     </span>
                   </h3>
                   <p className="kpi-ot-panel-desc">
-                    Audita y valida los tiempos de línea detenida reportados en las Órdenes de Trabajo antes de que computen como horas de mantención en la disponibilidad oficial de cada equipo.
+                    Audita y valida los tiempos de línea detenida reportados en Órdenes de Trabajo cerradas antes de que computen como horas de mantención en la disponibilidad oficial de cada equipo (exclusivo órdenes finalizadas con tiempo de detención mayor a 0).
                   </p>
                 </div>
 

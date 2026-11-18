@@ -666,7 +666,7 @@ export async function fetchOtsConTiempoDetencion() {
           area
         )
       `)
-      .or('tiempo_detencion_minutos.gt.0,condicion_linea.ilike.%detenida%')
+      .ilike('estado', 'finalizada')
       .order('id', { ascending: false })
 
     if (error) {
@@ -674,37 +674,45 @@ export async function fetchOtsConTiempoDetencion() {
       return []
     }
 
-    return (data || []).map((ot) => {
-      let minutos = Number(ot.tiempo_detencion_minutos) || 0
-      if (!minutos && ot.fecha_hora_inicio_trabajo && ot.fecha_hora_fin_trabajo) {
-        try {
-          const ini = new Date(ot.fecha_hora_inicio_trabajo).getTime()
-          const fin = new Date(ot.fecha_hora_fin_trabajo).getTime()
-          if (!isNaN(ini) && !isNaN(fin) && fin > ini) {
-            minutos = Math.round((fin - ini) / (1000 * 60))
-          }
-        } catch {}
-      }
+    return (data || [])
+      .map((ot) => {
+        let minutos = Number(ot.tiempo_detencion_minutos) || 0
+        if (!minutos && ot.fecha_hora_inicio_trabajo && ot.fecha_hora_fin_trabajo) {
+          try {
+            const ini = new Date(ot.fecha_hora_inicio_trabajo).getTime()
+            const fin = new Date(ot.fecha_hora_fin_trabajo).getTime()
+            if (!isNaN(ini) && !isNaN(fin) && fin > ini) {
+              minutos = Math.round((fin - ini) / (1000 * 60))
+            }
+          } catch {}
+        }
 
-      const horasDefecto = minutos > 0 ? Number((minutos / 60).toFixed(2)) : 0
-      const horasAprobadas = ot.kpi_horas_aprobadas !== null && ot.kpi_horas_aprobadas !== undefined
-        ? Number(ot.kpi_horas_aprobadas)
-        : horasDefecto
+        const horasDefecto = minutos > 0 ? Number((minutos / 60).toFixed(2)) : 0
+        const horasAprobadas =
+          ot.kpi_horas_aprobadas !== null && ot.kpi_horas_aprobadas !== undefined
+            ? Number(ot.kpi_horas_aprobadas)
+            : horasDefecto
 
-      const equipoNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo no especificado'
-      const equipoCodigo = ot.equipo?.codigo || ''
-      const area = ot.equipo?.area || ot.area || ot.solicitante_area || 'Producción'
+        const equipoNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo no especificado'
+        const equipoCodigo = ot.equipo?.codigo || ''
+        const area = ot.equipo?.area || ot.area || ot.solicitante_area || 'Producción'
 
-      return {
-        ...ot,
-        minutos_calculados: minutos,
-        horas_defecto: horasDefecto,
-        horas_aprobadas: horasAprobadas,
-        equipo_display: equipoNombre,
-        equipo_codigo_display: equipoCodigo,
-        area_display: area,
-      }
-    })
+        return {
+          ...ot,
+          minutos_calculados: minutos,
+          horas_defecto: horasDefecto,
+          horas_aprobadas: horasAprobadas,
+          equipo_display: equipoNombre,
+          equipo_codigo_display: equipoCodigo,
+          area_display: area,
+        }
+      })
+      .filter((ot) => {
+        // REGLA ESTRICTA: Solo órdenes cerradas (Finalizadas) y con tiempo de detención real mayor a 0
+        const esCerrada = String(ot.estado || '').toLowerCase().trim() === 'finalizada'
+        const minutosReales = Number(ot.minutos_calculados) || 0
+        return esCerrada && minutosReales > 0
+      })
   } catch (err) {
     console.error('Excepción al consultar OTs con tiempo de detención:', err)
     return []
