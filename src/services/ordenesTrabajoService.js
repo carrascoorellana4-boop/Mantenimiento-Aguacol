@@ -418,11 +418,14 @@ const appendLocalHistorial = (entry) => {
  */
 const enrichOrdenTrabajo = (ot, equiposList = []) => {
   if (!ot) return ot
-  const matchedEq =
-    ot.equipo ||
-    (ot.equipo_id && Array.isArray(equiposList)
-      ? equiposList.find((e) => e.id === ot.equipo_id) || null
-      : null)
+  let matchedEq = null
+  if (ot.equipo && ot.equipo_id && ot.equipo.id === ot.equipo_id) {
+    matchedEq = ot.equipo
+  } else if (ot.equipo_id && Array.isArray(equiposList)) {
+    matchedEq = equiposList.find((e) => e.id === ot.equipo_id) || ot.equipo || null
+  } else {
+    matchedEq = ot.equipo || null
+  }
 
   return {
     ...ot,
@@ -960,6 +963,7 @@ export const updateOrdenTrabajoDetails = async (
   if (updates.solicitante_area !== undefined) cleanUpdates.solicitante_area = updates.solicitante_area
   if (updates.fecha_hora_inicio_trabajo !== undefined) cleanUpdates.fecha_hora_inicio_trabajo = updates.fecha_hora_inicio_trabajo
   if (updates.fecha_hora_fin_trabajo !== undefined) cleanUpdates.fecha_hora_fin_trabajo = updates.fecha_hora_fin_trabajo
+  if (updates.equipo_solicitado !== undefined) cleanUpdates.equipo_solicitado = updates.equipo_solicitado || null
 
   const { data, error } = await supabase
     .from('orden_trabajo')
@@ -976,6 +980,49 @@ export const updateOrdenTrabajoDetails = async (
       )
     `)
     .single()
+
+  if (!error && data) {
+    // Si viene comentario de auditoría (por ejemplo, cambio de equipo por Administrador), registrarlo
+    if (updates.audit_comentario) {
+      try {
+        await supabase.from('orden_trabajo_estado_historial').insert([
+          {
+            ot_id: otId,
+            estado_anterior: data.estado,
+            estado_nuevo: data.estado,
+            fecha_hora: nowIso,
+            usuario_id: session?.user?.id || null,
+            usuario_nombre: session?.user?.email || 'Administrador',
+            comentario: updates.audit_comentario
+          }
+        ])
+      } catch (histErr) {
+        console.warn('No fue posible registrar auditoría de cambio en OT:', histErr)
+      }
+    }
+
+    // Si la OT tenía un registro de disponibilidad KPI vinculado y se modificó el equipo, mantenerlo sincronizado
+    if (cleanUpdates.equipo_id && data.kpi_registro_id) {
+      const matchedNew = Array.isArray(equiposList)
+        ? equiposList.find((e) => e.id === cleanUpdates.equipo_id)
+        : null
+      if (matchedNew) {
+        try {
+          await supabase
+            .from('registro_disponibilidad')
+            .update({
+              equipo_id: matchedNew.id,
+              codigo_equipo: matchedNew.codigo || 'EQ-PLANTA',
+              nombre_equipo: matchedNew.nombre,
+              area: matchedNew.area || cleanUpdates.area
+            })
+            .eq('id', data.kpi_registro_id)
+        } catch (dispErr) {
+          console.warn('Error al sincronizar registro_disponibilidad:', dispErr)
+        }
+      }
+    }
+  }
 
   if (error) {
     if (isFallbackEligibleError(error)) {

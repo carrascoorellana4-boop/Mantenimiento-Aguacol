@@ -128,6 +128,7 @@ export default function OrdenesTrabajoView({
   const [fichaTecnico, setFichaTecnico] = useState('')
   const [fichaTrabajo, setFichaTrabajo] = useState('')
   const [fichaPrioridad, setFichaPrioridad] = useState('Media')
+  const [fichaEquipoId, setFichaEquipoId] = useState('')
   const [fichaValidationError, setFichaValidationError] = useState('')
   const [fichaSaving, setFichaSaving] = useState(false)
   const [fichaPendingFinalizarMode, setFichaPendingFinalizarMode] = useState(false)
@@ -166,6 +167,7 @@ export default function OrdenesTrabajoView({
       setFichaTecnico(selectedOt.tecnico || '')
       setFichaTrabajo(selectedOt.trabajo || '')
       setFichaPrioridad(selectedOt.prioridad || 'Media')
+      setFichaEquipoId(selectedOt.equipo_id || '')
       setFichaCondicionLinea(selectedOt.condicion_linea || '')
       setFichaUtilizoRepuestos(selectedOt.utilizo_repuestos ? 'si' : 'no')
       if (selectedOt.tiempo_detencion_minutos !== undefined && selectedOt.tiempo_detencion_minutos !== null) {
@@ -251,6 +253,21 @@ export default function OrdenesTrabajoView({
       (eq) => isAreaMatching(eq.area, userAllowedArea) || isAreaMatching(eq.nombre, userAllowedArea)
     )
   }, [equiposList, userAllowedArea])
+
+  // Agrupación de equipos por área para selectores estructurados
+  const groupedEquipos = useMemo(() => {
+    const groups = {}
+    const list = Array.isArray(equiposList) ? equiposList : []
+    list.forEach((eq) => {
+      const areaKey = eq.area || 'General / Otros'
+      if (!groups[areaKey]) groups[areaKey] = []
+      groups[areaKey].push(eq)
+    })
+    Object.keys(groups).sort((a, b) => a.localeCompare(b, 'es')).forEach((k) => {
+      groups[k].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'))
+    })
+    return groups
+  }, [equiposList])
 
   // Catálogo de técnicos disponibles
   const tecnicosCatalogo = useMemo(() => {
@@ -723,6 +740,9 @@ export default function OrdenesTrabajoView({
 
     setFichaSaving(true)
     try {
+      const hasEquipoChanged = isUserAdmin && fichaEquipoId && fichaEquipoId !== selectedOt.equipo_id
+      const targetEq = hasEquipoChanged ? equiposList.find((eq) => eq.id === fichaEquipoId) : null
+
       if (shouldFinalize && selectedOt.estado !== 'Finalizada') {
         const trimmedTec = (fichaTecnico || '').trim()
         if (!trimmedTec || trimmedTec === 'Sin asignar' || trimmedTec === 'Por asignar') {
@@ -743,6 +763,24 @@ export default function OrdenesTrabajoView({
           const m = parseInt(fichaTiempoMinutos, 10) || 0
           totalFichaMinutos = Math.max(0, h * 60 + m)
         }
+
+        // Si el administrador modificó el equipo, persistir el cambio
+        if (hasEquipoChanged && targetEq) {
+          const prevNombre = resolveOtEquipoDisplay(selectedOt, equiposList).equipoNombre
+          await updateOrdenTrabajoDetails(
+            selectedOt.id,
+            {
+              equipo_id: targetEq.id,
+              area: targetEq.area || selectedOt.area,
+              ubicacion: targetEq.ubicacion || targetEq.area || selectedOt.ubicacion,
+              equipo_solicitado: targetEq.nombre,
+              audit_comentario: `Equipo modificado por Administrador: ${prevNombre} → ${targetEq.nombre}`
+            },
+            session,
+            equiposList
+          )
+        }
+
         const nowFinIso = new Date().toISOString()
         const ok = await executeStatusChangeWithOptimisticUi(selectedOt, 'Finalizada', {
           solucion_definitiva: fichaSolucion.trim(),
@@ -768,25 +806,41 @@ export default function OrdenesTrabajoView({
           const m = parseInt(fichaTiempoMinutos, 10) || 0
           totalFichaMinutos = Math.max(0, h * 60 + m)
         }
+        const updatesPayload = {
+          trabajo: fichaTrabajo,
+          tecnico: fichaTecnico,
+          prioridad: fichaPrioridad,
+          solucion_definitiva: fichaSolucion,
+          trabajo_pendiente: fichaTrabajoPendiente,
+          condicion_linea: fichaCondicionLinea || null,
+          tiempo_detencion_minutos: totalFichaMinutos,
+          utilizo_repuestos: fichaUtilizoRepuestos === 'si'
+        }
+
+        if (hasEquipoChanged && targetEq) {
+          const prevNombre = resolveOtEquipoDisplay(selectedOt, equiposList).equipoNombre
+          updatesPayload.equipo_id = targetEq.id
+          updatesPayload.area = targetEq.area || selectedOt.area
+          updatesPayload.ubicacion = targetEq.ubicacion || targetEq.area || selectedOt.ubicacion
+          updatesPayload.equipo_solicitado = targetEq.nombre
+          updatesPayload.audit_comentario = `Equipo modificado por Administrador: ${prevNombre} → ${targetEq.nombre}`
+        }
+
         const updated = await updateOrdenTrabajoDetails(
           selectedOt.id,
-          {
-            trabajo: fichaTrabajo,
-            tecnico: fichaTecnico,
-            prioridad: fichaPrioridad,
-            solucion_definitiva: fichaSolucion,
-            trabajo_pendiente: fichaTrabajoPendiente,
-            condicion_linea: fichaCondicionLinea || null,
-            tiempo_detencion_minutos: totalFichaMinutos,
-            utilizo_repuestos: fichaUtilizoRepuestos === 'si'
-          },
+          updatesPayload,
           session,
           equiposList
         )
         setOrdenesList((prev) =>
           prev.map((item) => (item.id === selectedOt.id ? updated : item))
         )
-        showToast(`Cambios guardados en ${formatCodigoOt(selectedOt)}`, 'success')
+        if (hasEquipoChanged) {
+          fetchOtHistorialEstados(selectedOt.id).then((hist) => setFichaHistorial(hist || []))
+          showToast(`Cambios guardados en ${formatCodigoOt(selectedOt)}. Equipo reasignado a: ${targetEq?.nombre || 'Nuevo equipo'}`, 'success')
+        } else {
+          showToast(`Cambios guardados en ${formatCodigoOt(selectedOt)}`, 'success')
+        }
       }
     } catch (err) {
       setFichaValidationError(err.message || 'No fue posible actualizar la OT.')
@@ -1416,6 +1470,13 @@ export default function OrdenesTrabajoView({
                 selectedOt,
                 equiposList
               )
+              const previewEq = isUserAdmin && fichaEquipoId && fichaEquipoId !== selectedOt.equipo_id
+                ? equiposList.find((e) => e.id === fichaEquipoId)
+                : null
+              const titleEquipo = previewEq ? previewEq.nombre : equipoNombre
+              const titleUbicacion = previewEq
+                ? (previewEq.area || previewEq.ubicacion || ubicacionDisplay)
+                : ubicacionDisplay
               const meta = ESTADO_META[selectedOt.estado] || ESTADO_META['Pendiente']
 
               return (
@@ -1458,7 +1519,12 @@ export default function OrdenesTrabajoView({
                         )}
                       </div>
                       <h2 className="modal-title" style={{ marginTop: '0.35rem' }}>
-                        {equipoNombre} — <span style={{ fontWeight: 500 }}>{ubicacionDisplay}</span>
+                        {titleEquipo} — <span style={{ fontWeight: 500 }}>{titleUbicacion}</span>
+                        {previewEq && (
+                          <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600, marginLeft: '0.6rem' }}>
+                            (Reasignando)
+                          </span>
+                        )}
                       </h2>
                     </div>
 
@@ -1662,13 +1728,46 @@ export default function OrdenesTrabajoView({
                     <form onSubmit={(e) => handleSaveFichaChanges(e, false)} noValidate>
                       <div className="form-grid">
                         <div className="form-group">
-                          <label className="form-label">Equipo</label>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={`${equipoNombre} (${ubicacionDisplay})`}
-                            disabled
-                          />
+                          <label className="form-label" htmlFor="ficha-equipo-select">
+                            Equipo
+                            {isUserAdmin && (
+                              <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 600, marginLeft: '0.5rem' }}>
+                                ⚙️ Modificar equipo (Admin)
+                              </span>
+                            )}
+                          </label>
+                          {isUserAdmin ? (
+                            <select
+                              id="ficha-equipo-select"
+                              data-testid="ficha-equipo-select"
+                              className="form-select"
+                              value={fichaEquipoId}
+                              onChange={(e) => setFichaEquipoId(e.target.value)}
+                            >
+                              <option value="">-- Seleccionar Equipo --</option>
+                              {fichaEquipoId && !equiposList.some((eq) => eq.id === fichaEquipoId) && (
+                                <option value={fichaEquipoId}>
+                                  {equipoNombre} ({ubicacionDisplay})
+                                </option>
+                              )}
+                              {Object.entries(groupedEquipos).map(([areaName, eqs]) => (
+                                <optgroup key={areaName} label={areaName}>
+                                  {eqs.map((eq) => (
+                                    <option key={eq.id} value={eq.id}>
+                                      {eq.nombre} {eq.codigo ? `[${eq.codigo}]` : ''}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={`${equipoNombre} (${ubicacionDisplay})`}
+                              disabled
+                            />
+                          )}
                         </div>
 
                         <div className="form-group">
