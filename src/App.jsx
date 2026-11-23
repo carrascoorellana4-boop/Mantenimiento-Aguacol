@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { CLASIFICACIONES_APROBADAS_REGISTRO } from './config/maestroJerarquia'
 import { buildActivosTree, findActivoInTree, ESTADOS_ACTIVO, PLANTA_NOMBRE, JERARQUIA_APROBADA } from './config/activosTree'
 import { TECNICOS_BASE } from './config/tecnicos'
+import { areTecnicosOficiales, isTecnicoOficial, normalizarCadenaTecnicosOficiales } from './lib/tecnicos'
 import DashboardMantenimiento from './components/DashboardMantenimiento'
 import ValidacionPendientesView from './components/ValidacionPendientesView'
 import OrdenesTrabajoView from './components/OrdenesTrabajoView'
@@ -1367,6 +1368,8 @@ function App() {
     }
     if (!intervencionForm.tecnico.trim()) {
       newErrors.tecnico = 'El nombre del técnico es obligatorio.'
+    } else if (!areTecnicosOficiales(intervencionForm.tecnico)) {
+      newErrors.tecnico = 'Debe seleccionar un técnico perteneciente al listado oficial.'
     }
     if (!intervencionForm.trabajo_realizado.trim()) {
       newErrors.trabajo_realizado = 'El trabajo realizado es obligatorio.'
@@ -2058,7 +2061,8 @@ function App() {
 
             const subIsDuplicate = subIsDuplicateInDb || subIsBatchDuplicate
             const subHasTecnico = rawTecnico.length > 0
-            const subEstadoRow = subIsDuplicate ? 'Duplicado' : (dateValid && subHasTecnico && subMatchedEq ? 'Resuelto' : 'Pendiente')
+            const subIsTecnicoValido = areTecnicosOficiales(rawTecnico)
+            const subEstadoRow = subIsDuplicate ? 'Duplicado' : (dateValid && subHasTecnico && subIsTecnicoValido && subMatchedEq ? 'Resuelto' : 'Pendiente')
 
             analyzedRows.push({
               rowNumber: i + 1,
@@ -2132,8 +2136,14 @@ function App() {
         let motivoPendiente = null
         const issues = []
 
+        const isTecnicoValido = areTecnicosOficiales(rawTecnico)
+
         if (!dateValid) issues.push('Fecha inválida')
-        if (!hasTecnico) issues.push('Técnico vacío')
+        if (!hasTecnico) {
+          issues.push('Técnico vacío')
+        } else if (!isTecnicoValido) {
+          issues.push(`Técnico fuera del catálogo oficial (${rawTecnico})`)
+        }
 
         if (isDespicheRutinario) {
           estadoRow = 'Rutina preventiva / excluida'
@@ -2144,6 +2154,9 @@ function App() {
           issues.push('Duplicado / ya existente')
         } else if (!dateValid || !hasTecnico) {
           estadoRow = 'Error'
+        } else if (!isTecnicoValido) {
+          estadoRow = 'Pendiente'
+          motivoPendiente = `Técnico "${rawTecnico}" no pertenece al listado oficial`
         } else if (isMatched && matchedEquipo) {
           estadoRow = 'Resuelto'
         } else {
@@ -2401,7 +2414,7 @@ function App() {
           return {
             fecha_hora: r.parsedDate ? r.parsedDate.toISOString() : new Date().toISOString(),
             equipo_id: r.matchedEquipo.id,
-            tecnico: r.tecnico || 'Técnico no especificado',
+            tecnico: normalizarCadenaTecnicosOficiales(r.tecnico) || r.tecnico,
             es_falla: Boolean(r.es_falla),
             tipo_intervencion: tipoFinal,
             falla_motivo: r.es_falla ? (r.falla_motivo || r.comentario || null) : null,
@@ -2425,6 +2438,22 @@ function App() {
       if (invalidTypes.length > 0) {
         setImportError(
           `Bloqueo de seguridad: Se detectaron ${invalidTypes.length} filas con tipo_intervencion no admitido por Supabase (${invalidTypes.slice(0, 3).map((x) => `"${x.tipo}"`).join(', ')}). No se envió ninguna petición a Supabase.`
+        )
+        setImportSubmitting(false)
+        return
+      }
+
+      // Validación estricta de técnicos del listado oficial
+      const invalidTecs = []
+      validRowsToInsert.forEach((r, idx) => {
+        if (!areTecnicosOficiales(r.tecnico)) {
+          invalidTecs.push({ idx: idx + 1, tecnico: r.tecnico })
+        }
+      })
+
+      if (invalidTecs.length > 0) {
+        setImportError(
+          `Bloqueo de seguridad: Se detectaron ${invalidTecs.length} filas con técnico fuera del catálogo oficial (${invalidTecs.slice(0, 3).map((x) => `"${x.tecnico}"`).join(', ')}). No se permiten tareas con técnicos no oficiales.`
         )
         setImportSubmitting(false)
         return
@@ -5928,21 +5957,13 @@ function App() {
                       </label>
                       <select
                         id="intervencion_tecnico_select"
-                        className={`form-input ${intervencionErrors.tecnico && !isOtroTecnico ? 'input-error' : ''}`}
+                        className={`form-input ${intervencionErrors.tecnico ? 'input-error' : ''}`}
                         value={tecnicoSelectValue}
                         onChange={(e) => {
                           const val = e.target.value
                           setTecnicoSelectValue(val)
-                          if (val === '__OTRO__') {
-                            setIsOtroTecnico(true)
-                            setIntervencionForm((prev) => ({ ...prev, tecnico: '' }))
-                          } else if (val === '') {
-                            setIsOtroTecnico(false)
-                            setIntervencionForm((prev) => ({ ...prev, tecnico: '' }))
-                          } else {
-                            setIsOtroTecnico(false)
-                            setIntervencionForm((prev) => ({ ...prev, tecnico: val }))
-                          }
+                          setIsOtroTecnico(false)
+                          setIntervencionForm((prev) => ({ ...prev, tecnico: val }))
                           if (intervencionErrors.tecnico) {
                             setIntervencionErrors((prev) => ({ ...prev, tecnico: null }))
                           }
@@ -5955,35 +5976,12 @@ function App() {
                             {t.nombre}
                           </option>
                         ))}
-                        <option value="__OTRO__">Otro / Pendiente de registrar</option>
+                        {!TECNICOS_BASE.some((t) => t.nombre === tecnicoSelectValue) && tecnicoSelectValue && (
+                          <option value={tecnicoSelectValue} disabled>
+                            {tecnicoSelectValue} (⚠️ Fuera de catálogo oficial - Reasignar)
+                          </option>
+                        )}
                       </select>
-
-                      {/* Campo condicional para técnico manual cuando se elige Otro */}
-                      {isOtroTecnico && (
-                        <div className="form-subgroup-otro-tecnico">
-                          <label className="form-sublabel" htmlFor="intervencion_tecnico_otro">
-                            Nombre del técnico (Otro / Pendiente de registrar) <span className="required-mark">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            id="intervencion_tecnico_otro"
-                            className={`form-input ${intervencionErrors.tecnico ? 'input-error' : ''}`}
-                            placeholder="Escriba nombre y apellido del técnico..."
-                            value={intervencionForm.tecnico}
-                            onChange={(e) => {
-                              setIntervencionForm((prev) => ({ ...prev, tecnico: e.target.value }))
-                              if (intervencionErrors.tecnico) {
-                                setIntervencionErrors((prev) => ({ ...prev, tecnico: null }))
-                              }
-                            }}
-                            disabled={intervencionLoading}
-                            autoFocus
-                          />
-                          <span style={{ fontSize: '0.8rem', color: '#f5b44a' }}>
-                            <Icon n="warn" /> Técnico no perteneciente al catálogo oficial BASE V1. Se registrará de forma manual para trazabilidad.
-                          </span>
-                        </div>
-                      )}
 
                       {intervencionErrors.tecnico && (
                         <span className="error-message">{intervencionErrors.tecnico}</span>

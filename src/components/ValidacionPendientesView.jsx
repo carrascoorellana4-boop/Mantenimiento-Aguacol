@@ -1,6 +1,8 @@
 import Icon from './Icon'
 import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { TECNICOS_BASE } from '../config/tecnicos'
+import { isTecnicoOficial } from '../lib/tecnicos'
 
 // Términos estrictamente prohibidos para ser usados como alias por ser genéricos
 const TERMINOS_GENERICOS_PROHIBIDOS = new Set([
@@ -40,12 +42,14 @@ export default function ValidacionPendientesView({
 
   // Selección individual en edición
   const [selectedEquiposMap, setSelectedEquiposMap] = useState({})
+  const [selectedTecnicosMap, setSelectedTecnicosMap] = useState({})
   const [saveAliasMap, setSaveAliasMap] = useState({})
   const [loadingRowId, setLoadingRowId] = useState(null)
 
   // Selección masiva
   const [selectedRowIds, setSelectedRowIds] = useState([])
   const [batchTargetEquipoId, setBatchTargetEquipoId] = useState('')
+  const [batchTargetTecnico, setBatchTargetTecnico] = useState('')
   const [isBatchConfirmOpen, setIsBatchConfirmOpen] = useState(false)
   const [batchLoading, setBatchLoading] = useState(false)
 
@@ -209,6 +213,14 @@ export default function ValidacionPendientesView({
     }
   }
 
+  // Selección de técnico por fila
+  const handleSelectTecnicoForRow = (rowId, tecNombre) => {
+    setSelectedTecnicosMap((prev) => ({
+      ...prev,
+      [rowId]: tecNombre
+    }))
+  }
+
   // =========================================================================
   // 1. VALIDAR REGISTRO INDIVIDUAL (Transacción lógica completa)
   // =========================================================================
@@ -222,6 +234,15 @@ export default function ValidacionPendientesView({
     const targetEquipo = equiposMap.get(targetEquipoId)
     if (!targetEquipo) {
       onErrorMessage('El equipo seleccionado no existe en el catálogo maestro.')
+      return
+    }
+
+    const chosenTecnico = selectedTecnicosMap[item.id] !== undefined
+      ? selectedTecnicosMap[item.id]
+      : (isTecnicoOficial(item.tecnico) ? item.tecnico : '')
+
+    if (!chosenTecnico || !isTecnicoOficial(chosenTecnico)) {
+      onErrorMessage('Debe asignar un técnico perteneciente al listado oficial antes de validar la tarea.')
       return
     }
 
@@ -248,7 +269,8 @@ export default function ValidacionPendientesView({
         p_equipo_id: targetEquipoId,
         p_guardar_alias: shouldSaveAlias,
         p_alias: rawAliasText || null,
-        p_user_id: userId
+        p_user_id: userId,
+        p_tecnico: chosenTecnico
       })
 
       if (rpcErr) {
@@ -260,7 +282,7 @@ export default function ValidacionPendientesView({
         const newIntervencion = {
           fecha_hora: fechaHoraFinal,
           equipo_id: targetEquipoId,
-          tecnico: item.tecnico || 'Técnico no especificado',
+          tecnico: chosenTecnico,
           es_falla: Boolean(item.es_falla),
           tipo_intervencion: item.tipo_intervencion || (item.es_falla ? 'Correctiva' : 'Preventiva'),
           falla_motivo: item.es_falla ? (item.falla_motivo || trabajoRealizadoFinal) : null,
@@ -286,6 +308,7 @@ export default function ValidacionPendientesView({
           .update({
             estado: 'Resuelto',
             equipo_id_resuelto: targetEquipoId,
+            tecnico: chosenTecnico,
             motivo_pendiente: `Resuelto a ${targetEquipo.nombre} [${targetEquipo.codigo}]`,
             resolved_at: new Date().toISOString(),
             resolved_by: userId
@@ -388,6 +411,15 @@ export default function ValidacionPendientesView({
     const itemsToProcess = pendientesList.filter((p) => selectedRowIds.includes(p.id))
     if (itemsToProcess.length === 0) return
 
+    // Validar que cada fila tenga un técnico oficial asignado
+    for (const item of itemsToProcess) {
+      const rowTec = batchTargetTecnico || selectedTecnicosMap[item.id] || (isTecnicoOficial(item.tecnico) ? item.tecnico : '')
+      if (!rowTec || !isTecnicoOficial(rowTec)) {
+        onErrorMessage(`El registro "${(item.trabajo_realizado || item.comentario || '').slice(0, 35)}..." no tiene un técnico oficial asignado. Seleccione un técnico del listado para el lote o asígnelo en su fila.`)
+        return
+      }
+    }
+
     setBatchLoading(true)
     try {
       const userId = session?.user?.id || null
@@ -396,10 +428,11 @@ export default function ValidacionPendientesView({
       const bitacoraInserts = itemsToProcess.map((item) => {
         const fechaHoraFinal = item.fecha_hora || item.fecha || new Date().toISOString()
         const trabajoRealizadoFinal = item.trabajo_realizado || item.comentario || 'Mantenimiento validado masivamente'
+        const tecFinal = batchTargetTecnico || selectedTecnicosMap[item.id] || item.tecnico
         return {
           fecha_hora: fechaHoraFinal,
           equipo_id: batchTargetEquipoId,
-          tecnico: item.tecnico || 'Técnico no especificado',
+          tecnico: tecFinal,
           es_falla: Boolean(item.es_falla),
           tipo_intervencion: item.tipo_intervencion || (item.es_falla ? 'Correctiva' : 'Preventiva'),
           falla_motivo: item.es_falla ? (item.falla_motivo || trabajoRealizadoFinal) : null,
@@ -420,15 +453,20 @@ export default function ValidacionPendientesView({
       if (insertErr) throw new Error(`Error en bitácora: ${insertErr.message}`)
 
       // Actualizar los registros en bitacora_importacion_pendiente
+      const updatePayload = {
+        estado: 'Resuelto',
+        equipo_id_resuelto: batchTargetEquipoId,
+        motivo_pendiente: `Validado en lote hacia ${targetEquipo.nombre}`,
+        resolved_at: new Date().toISOString(),
+        resolved_by: userId
+      }
+      if (batchTargetTecnico) {
+        updatePayload.tecnico = batchTargetTecnico
+      }
+
       const { error: updateErr } = await supabase
         .from('bitacora_importacion_pendiente')
-        .update({
-          estado: 'Resuelto',
-          equipo_id_resuelto: batchTargetEquipoId,
-          motivo_pendiente: `Validado en lote hacia ${targetEquipo.nombre}`,
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId
-        })
+        .update(updatePayload)
         .in('id', selectedRowIds)
 
       if (updateErr) throw new Error(`Error al actualizar pendientes masivos: ${updateErr.message}`)
@@ -437,6 +475,7 @@ export default function ValidacionPendientesView({
       setSelectedRowIds([])
       setIsBatchConfirmOpen(false)
       setBatchTargetEquipoId('')
+      setBatchTargetTecnico('')
       await onRefresh()
     } catch (err) {
       onErrorMessage(`Error en validación masiva: ${err.message}`)
@@ -681,7 +720,35 @@ export default function ValidacionPendientesView({
                         {displayFecha}
                       </td>
                       <td>
-                        <strong>{item.tecnico || '—'}</strong>
+                        {isResolved ? (
+                          <strong>{item.tecnico || '—'}</strong>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '150px' }}>
+                            <select
+                              className="form-select"
+                              style={{
+                                fontSize: '0.8rem',
+                                padding: '4px 6px',
+                                borderColor: !isTecnicoOficial(selectedTecnicosMap[item.id] !== undefined ? selectedTecnicosMap[item.id] : item.tecnico) ? '#f59e0b' : undefined,
+                                background: !isTecnicoOficial(selectedTecnicosMap[item.id] !== undefined ? selectedTecnicosMap[item.id] : item.tecnico) ? 'rgba(245, 158, 11, 0.15)' : undefined
+                              }}
+                              value={selectedTecnicosMap[item.id] !== undefined ? selectedTecnicosMap[item.id] : (isTecnicoOficial(item.tecnico) ? item.tecnico : '')}
+                              onChange={(e) => handleSelectTecnicoForRow(item.id, e.target.value)}
+                            >
+                              <option value="">-- Seleccionar técnico oficial --</option>
+                              {TECNICOS_BASE.filter((t) => t.activo).map((t) => (
+                                <option key={t.id} value={t.nombre}>
+                                  {t.nombre}
+                                </option>
+                              ))}
+                            </select>
+                            {(!isTecnicoOficial(selectedTecnicosMap[item.id] !== undefined ? selectedTecnicosMap[item.id] : item.tecnico) && item.tecnico) && (
+                              <span style={{ fontSize: '0.72rem', color: '#f59e0b' }} title={`Técnico detectado fuera de listado: ${item.tecnico}`}>
+                                ⚠️ Origen: <em>{item.tecnico}</em>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <span className="val-area-tag">{areaOriginal}</span>
@@ -836,8 +903,27 @@ export default function ValidacionPendientesView({
                   Área: {equiposMap.get(batchTargetEquipoId)?.area}
                 </span>
               </div>
+
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>
+                  Técnico oficial para el lote (opcional si ya tienen técnico oficial):
+                </label>
+                <select
+                  className="form-select"
+                  value={batchTargetTecnico}
+                  onChange={(e) => setBatchTargetTecnico(e.target.value)}
+                >
+                  <option value="">-- Conservar técnicos asignados en cada fila --</option>
+                  {TECNICOS_BASE.filter((t) => t.activo).map((t) => (
+                    <option key={t.id} value={t.nombre}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
-                Cada registro conservará su fecha, técnico y descripción histórica original para auditoría completa.
+                Solo se imputarán registros con técnicos pertenecientes al listado oficial.
               </p>
             </div>
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.5rem' }}>

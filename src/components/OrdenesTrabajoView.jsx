@@ -269,14 +269,10 @@ export default function OrdenesTrabajoView({
     return groups
   }, [equiposList])
 
-  // Catálogo de técnicos disponibles
+  // Catálogo de técnicos oficiales disponibles
   const tecnicosCatalogo = useMemo(() => {
-    const set = new Set(TECNICOS_BASE.map((t) => t.nombre))
-    scopedOrdenesList.forEach((ot) => {
-      parseTecnicos(ot.tecnico).forEach((t) => set.add(t))
-    })
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'))
-  }, [scopedOrdenesList])
+    return TECNICOS_BASE.map((t) => t.nombre).sort((a, b) => a.localeCompare(b, 'es'))
+  }, [])
 
   // Filtrado de OTs en el tablero
   const filteredOrdenes = useMemo(() => {
