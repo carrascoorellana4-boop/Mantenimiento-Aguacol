@@ -103,7 +103,7 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
     if (!isAdmin) return
     setLoadingOts(true)
     try {
-      const data = await fetchOtsConTiempoDetencion()
+      const data = await fetchOtsConTiempoDetencion(equiposList)
       setOtsDetencion(data)
     } catch (err) {
       console.warn('Error cargando OTs con tiempo de detención:', err)
@@ -116,7 +116,7 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
     if (isAdmin) {
       cargarOtsDetencion()
     }
-  }, [isAdmin])
+  }, [isAdmin, equiposList])
 
   const otsPendientesCount = useMemo(() => {
     return otsDetencion.filter((ot) => !ot.kpi_validado && !ot.kpi_omitido).length
@@ -239,9 +239,24 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
       }
     }
 
-    // Filtro de equipo
+    // Filtro de equipo (con soporte para incluir detenciones de hijos en su máquina padre)
     if (equipoFiltro !== 'todos') {
-      result = result.filter((r) => r.codigo_equipo === equipoFiltro || r.nombre_equipo === equipoFiltro)
+      result = result.filter((r) => {
+        if (r.codigo_equipo === equipoFiltro || r.nombre_equipo === equipoFiltro) return true
+        if (Array.isArray(equiposList)) {
+          const eqMatch = equiposList.find(
+            (e) =>
+              (r.equipo_id && e.id === r.equipo_id) ||
+              (e.codigo && e.codigo === r.codigo_equipo) ||
+              (e.nombre && e.nombre === r.nombre_equipo)
+          )
+          if (eqMatch?.equipo_padre_id) {
+            const padre = equiposList.find((p) => p.id === eqMatch.equipo_padre_id)
+            if (padre && (padre.codigo === equipoFiltro || padre.nombre === equipoFiltro)) return true
+          }
+        }
+        return false
+      })
     }
 
     // Búsqueda general
@@ -258,14 +273,14 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
     }
 
     return result
-  }, [registros, userAllowedArea, periodoVisual, equipoFiltro, searchQuery])
+  }, [registros, userAllowedArea, periodoVisual, equipoFiltro, searchQuery, equiposList])
 
-  // KPIs consolidados
+  // KPIs consolidados (con rollup jerárquico de hijos a activo padre)
   const kpis = useMemo(() => {
-    return consolidarKpisDisponibilidad(registrosFiltrados)
-  }, [registrosFiltrados])
+    return consolidarKpisDisponibilidad(registrosFiltrados, equiposList)
+  }, [registrosFiltrados, equiposList])
 
-  // Lista única de equipos presentes para el selector
+  // Lista única de equipos presentes para el selector (unificada en máquinas principales)
   const listaEquiposSelector = useMemo(() => {
     const s = new Map()
     const baseRegistros = userAllowedArea
@@ -275,13 +290,29 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
       : registros
 
     baseRegistros.forEach((r) => {
-      const key = r.codigo_equipo || r.nombre_equipo
+      let key = r.codigo_equipo || r.nombre_equipo
+      let nombre = r.nombre_equipo || r.codigo_equipo
+      if (Array.isArray(equiposList)) {
+        const eqMatch = equiposList.find(
+          (e) =>
+            (r.equipo_id && e.id === r.equipo_id) ||
+            (e.codigo && e.codigo === r.codigo_equipo) ||
+            (e.nombre && e.nombre === r.nombre_equipo)
+        )
+        if (eqMatch?.equipo_padre_id) {
+          const padre = equiposList.find((p) => p.id === eqMatch.equipo_padre_id)
+          if (padre) {
+            key = padre.codigo || padre.nombre
+            nombre = padre.nombre || padre.codigo
+          }
+        }
+      }
       if (key && !s.has(key)) {
-        s.set(key, r.nombre_equipo || r.codigo_equipo)
+        s.set(key, nombre)
       }
     })
     return Array.from(s.entries()).map(([k, val]) => ({ codigo: k, nombre: val }))
-  }, [registros, userAllowedArea])
+  }, [registros, userAllowedArea, equiposList])
 
   // Manejar selección de archivo Excel
   const handleFileChange = async (e) => {
@@ -1263,6 +1294,11 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <strong style={{ color: '#ffffff' }}>{ot.equipo_display}</strong>
+                              {ot.padre_display && (
+                                <span style={{ fontSize: '0.74rem', color: '#38bdf8', fontWeight: 600 }}>
+                                  ↳ Imputa detención a: {ot.padre_display}
+                                </span>
+                              )}
                               <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
                                 {ot.area_display} {ot.equipo_codigo_display ? `• ${ot.equipo_codigo_display}` : ''}
                               </span>

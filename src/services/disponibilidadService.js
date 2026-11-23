@@ -436,7 +436,7 @@ export async function parseExcelProduccionFile(file, equiposList = []) {
  * Consolida indicadores KPI de disponibilidad según la fórmula oficial:
  * Disponibilidad = (Horas disponibles / (Horas disponibles + Horas en mantención)) * 100
  */
-export function consolidarKpisDisponibilidad(registros = []) {
+export function consolidarKpisDisponibilidad(registros = [], equiposList = []) {
   if (!Array.isArray(registros) || registros.length === 0) {
     return {
       disponibilidadGlobal: 0,
@@ -455,6 +455,22 @@ export function consolidarKpisDisponibilidad(registros = []) {
       equipoMayorDisp: null,
       equipoMenorDisp: null,
     }
+  }
+
+  // Mapa de resolución padre-hijo: si un registro pertenece a un componente hijo,
+  // sus horas de detención computan a la máquina principal (activo padre)
+  const parentMap = new Map()
+  if (Array.isArray(equiposList) && equiposList.length > 0) {
+    equiposList.forEach((eq) => {
+      if (eq.equipo_padre_id) {
+        const padre = equiposList.find((p) => p.id === eq.equipo_padre_id)
+        if (padre) {
+          if (eq.id) parentMap.set(eq.id, padre)
+          if (eq.codigo) parentMap.set(String(eq.codigo).toUpperCase().trim(), padre)
+          if (eq.nombre) parentMap.set(String(eq.nombre).toUpperCase().trim(), padre)
+        }
+      }
+    })
   }
 
   let totalDisp = 0
@@ -486,13 +502,30 @@ export function consolidarKpisDisponibilidad(registros = []) {
     totalTurnosP += tProd
     totalTurnosM += tMant
 
-    // Consolidación por Equipo
-    const keyEq = reg.codigo_equipo || reg.nombre_equipo || 'Desconocido'
+    // Consolidación por Equipo (con rollup hacia activo padre si es un componente)
+    let targetCodigo = reg.codigo_equipo
+    let targetNombre = reg.nombre_equipo || reg.codigo_equipo
+    let targetArea = reg.area || 'Producción'
+
+    if (parentMap.size > 0) {
+      const matchPadre =
+        (reg.equipo_id && parentMap.get(reg.equipo_id)) ||
+        (reg.codigo_equipo && parentMap.get(String(reg.codigo_equipo).toUpperCase().trim())) ||
+        (reg.nombre_equipo && parentMap.get(String(reg.nombre_equipo).toUpperCase().trim()))
+
+      if (matchPadre) {
+        targetCodigo = matchPadre.codigo || targetCodigo
+        targetNombre = matchPadre.nombre || targetNombre
+        targetArea = matchPadre.area || targetArea
+      }
+    }
+
+    const keyEq = targetCodigo || targetNombre || 'Desconocido'
     if (!porEquipoMap.has(keyEq)) {
       porEquipoMap.set(keyEq, {
-        codigo: reg.codigo_equipo,
-        nombre: reg.nombre_equipo || reg.codigo_equipo,
-        area: reg.area || 'Producción',
+        codigo: targetCodigo,
+        nombre: targetNombre,
+        area: targetArea,
         horas_disponibles: 0,
         horas_mantencion: 0,
         horas_efectivas_mantenimiento: 0,
@@ -631,7 +664,7 @@ export function consolidarKpisDisponibilidad(registros = []) {
 /**
  * Consulta las Órdenes de Trabajo que reportan tiempos de detención o línea detenida
  */
-export async function fetchOtsConTiempoDetencion() {
+export async function fetchOtsConTiempoDetencion(equiposList = []) {
   try {
     const { data, error } = await supabase
       .from('orden_trabajo')
@@ -663,7 +696,8 @@ export async function fetchOtsConTiempoDetencion() {
           id,
           codigo,
           nombre,
-          area
+          area,
+          equipo_padre_id
         )
       `)
       .ilike('estado', 'finalizada')
@@ -697,6 +731,17 @@ export async function fetchOtsConTiempoDetencion() {
         const equipoCodigo = ot.equipo?.codigo || ''
         const area = ot.equipo?.area || ot.area || ot.solicitante_area || 'Producción'
 
+        // Detectar si el equipo es hijo y resolver su activo padre
+        let padreDisplay = null
+        let padreCodigoDisplay = null
+        if (ot.equipo?.equipo_padre_id && Array.isArray(equiposList)) {
+          const padre = equiposList.find((p) => p.id === ot.equipo.equipo_padre_id)
+          if (padre) {
+            padreDisplay = padre.nombre
+            padreCodigoDisplay = padre.codigo
+          }
+        }
+
         return {
           ...ot,
           minutos_calculados: minutos,
@@ -704,6 +749,8 @@ export async function fetchOtsConTiempoDetencion() {
           horas_aprobadas: horasAprobadas,
           equipo_display: equipoNombre,
           equipo_codigo_display: equipoCodigo,
+          padre_display: padreDisplay,
+          padre_codigo_display: padreCodigoDisplay,
           area_display: area,
         }
       })
@@ -748,12 +795,22 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
 
   // 2. Fallback: Operación directa con Supabase
   const fechaEfectiva = fecha || (ot.fecha_reporte ? String(ot.fecha_reporte).slice(0, 10) : new Date().toISOString().slice(0, 10))
+  const codOt = ot.codigo_ot || (ot.numero_ot ? `OT-${String(ot.numero_ot).padStart(6, '0')}` : `OT-${ot.id}`)
 
+  let targetEquipoId = ot.equipo_id || null
   let eqCodigo = ot.equipo?.codigo || ''
   let eqNombre = ot.equipo?.nombre || ot.equipo_solicitado || 'Equipo en planta'
   let eqArea = ot.equipo?.area || ot.area || 'Producción'
+  let motivoDetencion = `${codOt}: ${ot.trabajo || 'Detención de línea validada'}`
+  let obsDetencion = `Validado por ${userStr}. Tiempo detenido reportado: ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min. Solicitante: ${ot.solicitante_nombre || 'Planta'}.`
 
-  if (!eqCodigo) {
+  // Si es un componente hijo, imputar las horas al activo padre
+  if (ot.padre_display) {
+    eqNombre = ot.padre_display
+    if (ot.padre_codigo_display) eqCodigo = ot.padre_codigo_display
+    motivoDetencion = `${ot.equipo_display || 'Componente'}: ${ot.trabajo || 'Detención de línea'}`
+    obsDetencion = `Horas imputadas a ${ot.padre_display} por detención en componente ${ot.equipo_display || 'hijo'} (${codOt} - ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min reportados). Validado por ${userStr}.`
+  } else if (!eqCodigo) {
     const norm = normalizeEquipoKey(eqNombre)
     if (MAPA_ALIAS_EQUIPOS[norm]) {
       eqCodigo = MAPA_ALIAS_EQUIPOS[norm].codigo
@@ -764,12 +821,10 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
     }
   }
 
-  const codOt = ot.codigo_ot || (ot.numero_ot ? `OT-${String(ot.numero_ot).padStart(6, '0')}` : `OT-${ot.id}`)
-
   // NOTA: No incluir 'disponibilidad_pct' porque es una columna GENERATED en PostgreSQL
   const nuevoRegistro = {
     fecha: fechaEfectiva,
-    equipo_id: ot.equipo_id || null,
+    equipo_id: targetEquipoId,
     codigo_equipo: eqCodigo,
     nombre_equipo: eqNombre,
     area: eqArea,
@@ -780,9 +835,9 @@ export async function validarTiempoDetencionOt({ ot, horasValidadas, fecha, usua
     turnos_produccion: 0,
     turnos_mantencion: Number((horas / 8).toFixed(2)),
     tipo_detencion: 'Falla / Mantenimiento Correctivo (OT)',
-    motivo: `${codOt}: ${ot.trabajo || 'Detención de línea validada'}`,
+    motivo: motivoDetencion,
     turno: 'Turno mantenimiento',
-    observaciones: `Validado por ${userStr}. Tiempo detenido reportado: ${ot.tiempo_detencion_minutos || Math.round(horas * 60)} min. Solicitante: ${ot.solicitante_nombre || 'Planta'}.`,
+    observaciones: obsDetencion,
     origen_importacion: `Validación ${codOt}`,
     registrado_por: userStr,
     cobertura: 'Validada'
