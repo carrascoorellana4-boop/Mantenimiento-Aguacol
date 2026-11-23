@@ -19,7 +19,7 @@
  * 4. SERVICIOS GENERALES:
  *    - Instalaciones Generales, Portón de acceso a planta, Sistema de iluminación Galpón Soplado.
  * 5. BODEGA TRADICIONAL:
- *    - Elevador Bodega Tradicional.
+ *    - Elevador Bodega Tradicional, Envolvedora de pallet.
  */
 
 export const PLANTA_NOMBRE = 'AGUACOL'
@@ -1411,6 +1411,18 @@ export const JERARQUIA_APROBADA = [
         criticidad: 'Media',
         ubicacion: 'AGUACOL → Bodega Tradicional',
         descripcion: 'Elevador de carga destinado a elevar pallets para almacenarlos en racks',
+        hijos: []
+      },
+      {
+        id: 'act-envolvedora-pallet-bodega-tradicional',
+        codigo: 'AGL-BOD-ENV-01',
+        nombre: 'Envolvedora de pallet',
+        area: 'Bodega Tradicional',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'AGUACOL → Bodega Tradicional',
+        descripcion: 'Envolvedora de pallet (stretch film) para consolidación de carga en Bodega Tradicional',
         hijos: []
       }
     ]

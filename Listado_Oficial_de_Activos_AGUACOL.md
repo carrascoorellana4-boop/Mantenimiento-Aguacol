@@ -3,7 +3,7 @@
 > **Documento Controlado:** Inventario Técnico de Mantenimiento y Estructura de Activos  
 > **Plataforma:** Sistema de Gestión de Mantenimiento AGUACOL (`https://mantenimiento.aguacol.cl`)  
 > **Fecha de emisión:** 17 de Noviembre de 2026  
-> **Total de activos registrados:** 115 equipos y componentes técnicos  
+> **Total de activos registrados:** 116 equipos y componentes técnicos  
 > **Total de ubicaciones técnicas:** 22 nodos jerárquicos
 
 ---
@@ -19,8 +19,8 @@ El presente documento consolida la totalidad de los activos físicos, maquinaria
 | **Producción / Líneas JJV** | 17 | 2 | **19** |
 | **Sector Cloro (Galpón Cloro)** | 9 | 0 | **9** |
 | **Servicios Generales e Infraestructura** | 7 | 0 | **7** |
-| **Bodega Tradicional** | 1 | 0 | **1** |
-| **TOTAL GENERAL** | **84** | **31** | **115** |
+| **Bodega Tradicional** | 2 | 0 | **2** |
+| **TOTAL GENERAL** | **85** | **31** | **116** |
 
 ---
 
@@ -208,6 +208,7 @@ Sistemas eléctricos, elevador de bodega tradicional, iluminación general, coci
 | Código | Nombre del Activo | Tipo / Dependencia | Criticidad | Estado | Ubicación / Ruta |
 | :--- | :--- | :--- | :---: | :---: | :--- |
 | `AGL-BOD-ELEV-01` | **Elevador Bodega Tradicional** | **Principal** | 🟡 Media | ⚠️ Operativo | Bodega Tradicional > Elevador Bodega Tradicional |
+| `AGL-BOD-ENV-01` | **Envolvedora de pallet** | **Principal** | 🟡 Media | ✅ Activo | Bodega Tradicional > Envolvedora de pallet |
 | `AGL-SSGG-INF-POR-01` | **Portón de acceso a planta** | **Principal** | 🟡 Media | ⚠️ Operativo | Servicios Generales > Portón de acceso a planta |
 | `AGL-SSGG-ILU-COC-01` | **Sistema de iluminación Cocina** | **Principal** | 🟢 Baja | ⚠️ Operativo | Producción / JJV > Cocina > Sistema de iluminación Cocina |
 | `AGL-SSGG-TAB-COC-01` | **Tablero eléctrico Cocina** | **Principal** | 🟡 Media | ⚠️ Operativo | Producción / JJV > Cocina > Tablero eléctrico Cocina |
