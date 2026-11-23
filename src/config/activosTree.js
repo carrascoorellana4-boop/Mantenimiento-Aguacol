@@ -12,7 +12,7 @@
  * 2. SOPLADO (Reemplaza oficialmente a PET; PET solo referencia histórica):
  *    - S1 (con Embolsadora PET), S2 (con Embandejadora), Compresor Booster, Compresor PET, Chiller Soplado (compartido S1-S2), Moledora, Paletizadora.
  * 3. PRODUCCIÓN / JJV:
- *    - Galpón de Producción: JJV Línea 1 a 10, Horno de producción (en Línea 3), Selladora de producción, Bomba sumergible Galpón de Producción.
+ *    - Galpón de Producción: JJV Línea 1 a 10, Horno de producción (en Línea 3), Selladora de producción, Bomba sumergible Galpón de Producción, Envolvedora de pallet 1 y 2.
  *    - Compresor, Estanques acumuladores de producto líquido, Desmineralizador (con Estanques de producción).
  *    - Galpón de Cloro (Horno de cloro, Selladora de cloro, Transpaleta de cloro).
  *    - Cocina (área/ubicación técnica de Producción).
@@ -1152,6 +1152,32 @@ export const JERARQUIA_APROBADA = [
         criticidad: 'Media',
         ubicacion: 'AGUACOL → Producción / JJV → Galpón de Producción',
         descripcion: 'Bomba sumergible destinada a evacuar agua acumulada en el Galpón de Producción donde operan las líneas JJV.',
+        hijos: []
+      },
+      {
+        id: 'act-envolvedora-pallet-prod-1',
+        codigo: 'AGL-JJV-PROD-ENV-01',
+        nombre: 'Envolvedora de pallet 1',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Producción',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'Galpón Producción',
+        descripcion: 'Envolvedora de pallet 1 para envoltura con film de producto terminado en Galpón de Producción',
+        hijos: []
+      },
+      {
+        id: 'act-envolvedora-pallet-prod-2',
+        codigo: 'AGL-JJV-PROD-ENV-02',
+        nombre: 'Envolvedora de pallet 2',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Producción',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Media',
+        ubicacion: 'Galpón Producción',
+        descripcion: 'Envolvedora de pallet 2 para envoltura con film de producto terminado en Galpón de Producción',
         hijos: []
       },
 

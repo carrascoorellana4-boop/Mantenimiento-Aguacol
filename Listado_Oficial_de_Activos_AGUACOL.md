@@ -3,7 +3,7 @@
 > **Documento Controlado:** Inventario Técnico de Mantenimiento y Estructura de Activos  
 > **Plataforma:** Sistema de Gestión de Mantenimiento AGUACOL (`https://mantenimiento.aguacol.cl`)  
 > **Fecha de emisión:** 17 de Noviembre de 2026  
-> **Total de activos registrados:** 116 equipos y componentes técnicos  
+> **Total de activos registrados:** 118 equipos y componentes técnicos  
 > **Total de ubicaciones técnicas:** 22 nodos jerárquicos
 
 ---
@@ -16,11 +16,11 @@ El presente documento consolida la totalidad de los activos físicos, maquinaria
 | :--- | :---: | :---: | :---: |
 | **Plásticos (Extrusión, Inyección, Refrig.)** | 41 | 27 | **68** |
 | **Soplado** | 9 | 2 | **11** |
-| **Producción / Líneas JJV** | 17 | 2 | **19** |
+| **Producción / Líneas JJV** | 19 | 2 | **21** |
 | **Sector Cloro (Galpón Cloro)** | 9 | 0 | **9** |
 | **Servicios Generales e Infraestructura** | 7 | 0 | **7** |
 | **Bodega Tradicional** | 2 | 0 | **2** |
-| **TOTAL GENERAL** | **85** | **31** | **116** |
+| **TOTAL GENERAL** | **87** | **31** | **118** |
 
 ---
 
@@ -175,9 +175,11 @@ Líneas de llenado y envasado JJV Líneas 1 a 9, sistemas térmicos (horno de pr
 | `AGL-JJV-PROD-L09` | **JJV Línea 9** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 9 |
 | `AGL-JJV-PROD-L10` | **JJV Línea 10** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 10 |
 | `AGL-JJV-PROD-SELL` | **Selladora de producción** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > Selladora de producción |
+| `AGL-JJV-PROD-ENV-01` | **Envolvedora de pallet 1** | **Principal** | 🟡 Media | ✅ Activo | Producción / JJV > Galpón Producción > Envolvedora de pallet 1 |
+| `AGL-JJV-PROD-ENV-02` | **Envolvedora de pallet 2** | **Principal** | 🟡 Media | ✅ Activo | Producción / JJV > Galpón Producción > Envolvedora de pallet 2 |
 | `AGL-SSGG-ELEC-PROD-01` | **Sistema eléctrico galpón producción** | **Principal** | 🟡 Media | ✅ Activo | Producción / JJV > Galpón Producción > Sistema eléctrico galpón producción |
 
-*Subtotal sección: 19 activos.*
+*Subtotal sección: 21 activos.*
 
 ---
 
