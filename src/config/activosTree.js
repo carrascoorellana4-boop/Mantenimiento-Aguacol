@@ -12,7 +12,7 @@
  * 2. SOPLADO (Reemplaza oficialmente a PET; PET solo referencia histórica):
  *    - S1 (con Embolsadora PET), S2 (con Embandejadora), Compresor Booster, Compresor PET, Chiller Soplado (compartido S1-S2), Moledora, Paletizadora.
  * 3. PRODUCCIÓN / JJV:
- *    - Galpón de Producción: JJV Línea 1 a 9, Horno de producción (en Línea 3), Selladora de producción, Bomba sumergible Galpón de Producción.
+ *    - Galpón de Producción: JJV Línea 1 a 10, Horno de producción (en Línea 3), Selladora de producción, Bomba sumergible Galpón de Producción.
  *    - Compresor, Estanques acumuladores de producto líquido, Desmineralizador (con Estanques de producción).
  *    - Galpón de Cloro (Horno de cloro, Selladora de cloro, Transpaleta de cloro).
  *    - Cocina (área/ubicación técnica de Producción).
@@ -1114,6 +1114,18 @@ export const JERARQUIA_APROBADA = [
         estado: 'operativo',
         criticidad: 'Alta',
         ubicacion: 'Galpón de Producción - Línea 9',
+        hijos: []
+      },
+      {
+        id: 'act-jjv-10',
+        codigo: 'JJV Línea 10',
+        nombre: 'JJV Línea 10',
+        area: 'Producción / JJV',
+        grupo: 'Galpón de Producción',
+        tipo: 'padre',
+        estado: 'operativo',
+        criticidad: 'Alta',
+        ubicacion: 'Galpón de Producción - Línea 10',
         hijos: []
       },
       {

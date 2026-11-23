@@ -3,7 +3,7 @@
 > **Documento Controlado:** Inventario Técnico de Mantenimiento y Estructura de Activos  
 > **Plataforma:** Sistema de Gestión de Mantenimiento AGUACOL (`https://mantenimiento.aguacol.cl`)  
 > **Fecha de emisión:** 17 de Noviembre de 2026  
-> **Total de activos registrados:** 114 equipos y componentes técnicos  
+> **Total de activos registrados:** 115 equipos y componentes técnicos  
 > **Total de ubicaciones técnicas:** 22 nodos jerárquicos
 
 ---
@@ -16,11 +16,11 @@ El presente documento consolida la totalidad de los activos físicos, maquinaria
 | :--- | :---: | :---: | :---: |
 | **Plásticos (Extrusión, Inyección, Refrig.)** | 41 | 27 | **68** |
 | **Soplado** | 9 | 2 | **11** |
-| **Producción / Líneas JJV** | 16 | 2 | **18** |
+| **Producción / Líneas JJV** | 17 | 2 | **19** |
 | **Sector Cloro (Galpón Cloro)** | 9 | 0 | **9** |
 | **Servicios Generales e Infraestructura** | 7 | 0 | **7** |
 | **Bodega Tradicional** | 1 | 0 | **1** |
-| **TOTAL GENERAL** | **83** | **31** | **114** |
+| **TOTAL GENERAL** | **84** | **31** | **115** |
 
 ---
 
@@ -173,6 +173,7 @@ Líneas de llenado y envasado JJV Líneas 1 a 9, sistemas térmicos (horno de pr
 | `AGL-JJV-PROD-L07` | **JJV Línea 7** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 7 |
 | `AGL-JJV-PROD-L08` | **JJV Línea 8** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 8 |
 | `AGL-JJV-PROD-L09` | **JJV Línea 9** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 9 |
+| `AGL-JJV-PROD-L10` | **JJV Línea 10** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > JJV Línea 10 |
 | `AGL-JJV-PROD-SELL` | **Selladora de producción** | **Principal** | 🔴 Alta | ✅ Activo | Producción / JJV > Galpón Producción > Selladora de producción |
 | `AGL-SSGG-ELEC-PROD-01` | **Sistema eléctrico galpón producción** | **Principal** | 🟡 Media | ✅ Activo | Producción / JJV > Galpón Producción > Sistema eléctrico galpón producción |
 
