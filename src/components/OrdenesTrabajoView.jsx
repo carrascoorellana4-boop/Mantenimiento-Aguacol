@@ -80,9 +80,13 @@ export default function OrdenesTrabajoView({
   initialLoading = false,
   onNavigateToDashboard = () => {}
 }) {
-  const isUserAdmin = isAdmin || getUserRole(session?.user) === 'admin'
-  // Solo el administrador o mant_admin puede crear o cambiar OT (la base lo exige igual).
-  const readOnly = !isUserAdmin && session?.user?.role !== 'mant_admin'
+  const userRole = getUserRole(session?.user)
+  const isUserAdmin = isAdmin || userRole === 'admin' || session?.user?.role === 'mant_admin'
+  const isTecnico = userRole === 'tecnico'
+  // Administradores y técnicos de mantención pueden cambiar estado y gestionar OTs
+  const canEditOtStatus = isUserAdmin || isTecnico
+  const canCreateOt = isUserAdmin
+  const readOnly = !canEditOtStatus
   // Pestaña activa en vista móvil
   const [mobileActiveTab, setMobileActiveTab] = useState('Pendiente')
   const touchStartXRef = useRef(null)
@@ -1200,7 +1204,7 @@ export default function OrdenesTrabajoView({
           >
             Ver Dashboard
           </button>
-          {!readOnly && (<button
+          {canCreateOt && (<button
             type="button"
             className="btn-primary ot-btn-header-new"
             data-testid="btn-nueva-ot"

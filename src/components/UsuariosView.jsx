@@ -67,7 +67,7 @@ export const ROLES = {
   },
   tecnico: {
     label: 'Técnico de Mantención',
-    hint: 'Acceso a ejecución de preventivos, visualización de órdenes de trabajo, bitácora e indicadores de planta.',
+    hint: 'Acceso a ejecución de preventivos, edición de estados en órdenes de trabajo (OT), bitácora e indicadores de planta.',
     badgeClass: 'usr-rol-viewer',
     area: 'Mantenimiento',
     Cmp: ShieldCheck
