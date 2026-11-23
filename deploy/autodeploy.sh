@@ -13,6 +13,7 @@ NUEVO=$(git -C repo rev-parse --short origin/main)
 log "commit nuevo $NUEVO: $(git -C repo log -1 --format=%s origin/main)"
 git -C repo merge --ff-only -q origin/main || { log "no se pudo avanzar: hay cambios locales en repo/ del servidor"; exit 1; }
 if docker compose build web >> autodeploy.log 2>&1; then
+  cp -r repo/deploy/usermgr/* usermgr/ 2>/dev/null || true
   docker compose up -d web usermgr >> autodeploy.log 2>&1 && log "desplegado $NUEVO"
   docker compose restart usermgr >> autodeploy.log 2>&1 || true
 else

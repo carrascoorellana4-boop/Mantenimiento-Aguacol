@@ -65,6 +65,13 @@ export const ROLES = {
     area: 'Plásticos',
     Cmp: ShieldCheck
   },
+  tecnico: {
+    label: 'Técnico de Mantención',
+    hint: 'Acceso a ejecución de preventivos, visualización de órdenes de trabajo, bitácora e indicadores de planta.',
+    badgeClass: 'usr-rol-viewer',
+    area: 'Mantenimiento',
+    Cmp: ShieldCheck
+  },
 }
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' }) : 'Nunca')
@@ -109,6 +116,26 @@ export const USUARIOS_SEGMENTADOS = [
     nombre: 'Bastián Oteiza',
     badgeClass: 'badge-plasticos',
     desc: 'Acceso a Mantenimiento Preventivo, KPI de Disponibilidad y Órdenes de Trabajo de Plásticos.'
+  },
+  {
+    username: 'vmunoz',
+    email: 'vmunoz@aguacol.cl',
+    password: 'Mtto2026.',
+    role: 'tecnico',
+    area: 'Mantenimiento',
+    nombre: 'Víctor Muñoz',
+    badgeClass: 'badge-plasticos',
+    desc: 'Técnico de mantención oficial de planta AGUACOL.'
+  },
+  {
+    username: 'worellana',
+    email: 'worellana@aguacol.cl',
+    password: 'Mtto2026.',
+    role: 'tecnico',
+    area: 'Mantenimiento',
+    nombre: 'Willi Orellana',
+    badgeClass: 'badge-plasticos',
+    desc: 'Técnico de mantención oficial de planta AGUACOL.'
   }
 ]
 

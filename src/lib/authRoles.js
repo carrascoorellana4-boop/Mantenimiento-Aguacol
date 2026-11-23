@@ -79,13 +79,20 @@ export function getUserRole(user) {
     (metaRole in ROLES_OPERADOR ||
       metaRole in ROLES_ESPECIALES ||
       metaRole === 'viewer' ||
-      metaRole === 'operador')
+      metaRole === 'operador' ||
+      metaRole === 'tecnico')
   ) {
     return metaRole
   }
 
   // 3. Inferencia por nombre de usuario o correo electrónico
   const strId = ((user.email || '') + ' ' + (user.user_metadata?.username || '')).toLowerCase().trim()
+  if (strId.includes('vmunoz')) {
+    return 'tecnico'
+  }
+  if (strId.includes('worellana')) {
+    return 'tecnico'
+  }
   if (strId.includes('ldonoso')) {
     return 'visor_ot_plasticos'
   }
@@ -143,6 +150,7 @@ export function getUserAllowedArea(roleOrUser) {
     role = roleOrUser
   }
 
+  if (role === 'tecnico') return 'Mantenimiento'
   if (role === 'visor_ot_plasticos' || role === 'supervisor_plasticos') return 'Plásticos'
   if (role === 'visor_ot_jjv') return 'Producción JJV'
   if (role === 'operador_extrusion') return 'Extrusión'

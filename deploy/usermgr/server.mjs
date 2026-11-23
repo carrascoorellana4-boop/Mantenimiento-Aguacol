@@ -63,6 +63,7 @@ const aRol = (r) => {
   if (r === 'admin') return ADMIN
   if (
     r === 'viewer' ||
+    r === 'tecnico' ||
     r === 'operador' ||
     r === 'operador_extrusion' ||
     r === 'operador_soplado' ||
@@ -80,6 +81,7 @@ const publico = (u) => {
   let role = u.user_metadata?.role || u.app_metadata?.role
   if (!role) {
     if (u.role === ADMIN) role = 'admin'
+    else if (u.email?.includes('vmunoz') || u.email?.includes('worellana') || u.user_metadata?.role === 'tecnico') role = 'tecnico'
     else if (u.email?.includes('opextrusion') || u.email?.includes('operador.extrusion') || u.email?.includes('operador_extrusion')) role = 'operador_extrusion'
     else if (u.email?.includes('opsoplado') || u.email?.includes('operador.soplado') || u.email?.includes('operador_soplado')) role = 'operador_soplado'
     else if (u.email?.includes('opinyeccion') || u.email?.includes('operador.inyeccion') || u.email?.includes('operador_inyeccion')) role = 'operador_inyeccion'
@@ -91,6 +93,7 @@ const publico = (u) => {
     else role = 'viewer'
   }
   const area = u.user_metadata?.area || (
+    role === 'tecnico' ? 'Mantenimiento' :
     role === 'operador_extrusion' ? 'Extrusión' :
     role === 'operador_soplado' ? 'Soplado' :
     role === 'operador_inyeccion' ? 'Inyección' :
@@ -496,6 +499,48 @@ const OPERADORES_BASE = [
     area: 'Plásticos',
     nombre: 'Bastián Oteiza',
     allowed_modules: ['ordenes-trabajo', 'mantenimiento-preventivo', 'disponibilidad']
+  },
+  {
+    username: 'vmunoz',
+    email: 'vmunoz@aguacol.cl',
+    password: 'Mtto2026.',
+    role: 'tecnico',
+    area: 'Mantenimiento',
+    nombre: 'Víctor Muñoz',
+    allowed_modules: [
+      'home',
+      'ordenes-trabajo',
+      'solicitud-mantenimiento',
+      'mantenimiento-preventivo',
+      'disponibilidad',
+      'dashboard',
+      'bitacora',
+      'arbol-activos',
+      'dashboard-inventario',
+      'repuestos',
+      'compras'
+    ]
+  },
+  {
+    username: 'worellana',
+    email: 'worellana@aguacol.cl',
+    password: 'Mtto2026.',
+    role: 'tecnico',
+    area: 'Mantenimiento',
+    nombre: 'Willi Orellana',
+    allowed_modules: [
+      'home',
+      'ordenes-trabajo',
+      'solicitud-mantenimiento',
+      'mantenimiento-preventivo',
+      'disponibilidad',
+      'dashboard',
+      'bitacora',
+      'arbol-activos',
+      'dashboard-inventario',
+      'repuestos',
+      'compras'
+    ]
   }
 ]
 
