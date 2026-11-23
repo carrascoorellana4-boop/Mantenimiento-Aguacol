@@ -1571,8 +1571,10 @@ function App() {
         return
       }
 
-      const headerRow = rows[0] || []
-      const colIndices = {
+      // Detección dinámica de la fila de encabezados en la hoja principal
+      // Soporta archivos con títulos, resúmenes o metadatos antes de la tabla real
+      let headerRowIndex = 0
+      let colIndices = {
         fecha: -1,
         tecnico: -1,
         maquina: -1,
@@ -1585,25 +1587,128 @@ function App() {
         estado_final: -1
       }
 
-      headerRow.forEach((col, idx) => {
-        const norm = normalizeText(col)
-        if (norm.includes('fecha')) colIndices.fecha = idx
-        else if (norm.includes('tecnico') || norm.includes('informa')) colIndices.tecnico = idx
-        else if (norm.includes('maquina') || norm.includes('equipo')) colIndices.maquina = idx
-        else if (norm.includes('area')) colIndices.area = idx
-        else if (norm.includes('comentario') || norm.includes('trabajo')) colIndices.comentario = idx
-        else if (norm.includes('es falla') || norm.includes('es_falla')) colIndices.es_falla = idx
-        else if (norm.includes('tipo intervencion') || norm.includes('tipo_intervencion')) colIndices.tipo_intervencion = idx
-        else if (norm.includes('tipo falla') || norm.includes('tipo_falla')) colIndices.tipo_falla = idx
-        else if (norm.includes('motivo') || norm.includes('causa') || norm.includes('falla motivo')) colIndices.falla_motivo = idx
-        else if (norm.includes('estado final') || norm.includes('estado_final')) colIndices.estado_final = idx
-      })
+      for (let rIdx = 0; rIdx < Math.min(50, rows.length); rIdx++) {
+        const candidateRow = rows[rIdx] || []
+        if (!candidateRow || candidateRow.length === 0) continue
 
+        const tempCol = {
+          fecha: -1,
+          tecnico: -1,
+          maquina: -1,
+          area: -1,
+          comentario: -1,
+          es_falla: -1,
+          tipo_intervencion: -1,
+          tipo_falla: -1,
+          falla_motivo: -1,
+          estado_final: -1
+        }
+
+        let hits = 0
+        candidateRow.forEach((col, idx) => {
+          const norm = normalizeText(col)
+          if (!norm) return
+
+          if (norm.includes('fecha')) {
+            tempCol.fecha = idx
+            hits++
+          } else if (norm.includes('tecnico') || norm.includes('informa') || norm.includes('responsable')) {
+            tempCol.tecnico = idx
+            hits++
+          } else if (norm.includes('maquina') || norm.includes('equipo') || norm.includes('activo')) {
+            tempCol.maquina = idx
+            hits++
+          } else if (norm.includes('area') || norm.includes('sector') || norm.includes('ubicacion')) {
+            tempCol.area = idx
+            hits++
+          } else if (
+            norm.includes('comentario') ||
+            norm.includes('trabajo') ||
+            norm.includes('descripcion') ||
+            norm.includes('detalle') ||
+            norm.includes('actividad') ||
+            norm.includes('observacion') ||
+            norm.includes('mensaje')
+          ) {
+            tempCol.comentario = idx
+            hits++
+          } else if (norm.includes('es falla') || norm.includes('es_falla')) {
+            tempCol.es_falla = idx
+          } else if (norm.includes('tipo intervencion') || norm.includes('tipo_intervencion')) {
+            tempCol.tipo_intervencion = idx
+          } else if (norm.includes('tipo falla') || norm.includes('tipo_falla')) {
+            tempCol.tipo_falla = idx
+          } else if (norm.includes('motivo') || norm.includes('causa') || norm.includes('falla motivo')) {
+            tempCol.falla_motivo = idx
+          } else if (norm.includes('estado final') || norm.includes('estado_final')) {
+            tempCol.estado_final = idx
+          }
+        })
+
+        // Un encabezado válido debe reconocer al menos 2 columnas clave
+        if (hits >= 2 && (tempCol.fecha !== -1 || tempCol.maquina !== -1 || tempCol.comentario !== -1)) {
+          headerRowIndex = rIdx
+          colIndices = tempCol
+          break
+        }
+      }
+
+      // Si no se detectó cabecera en el escaneo, usar fila 0 con defaults seguros
+      if (colIndices.fecha === -1 && colIndices.maquina === -1) {
+        headerRowIndex = 0
+        const headerRow = rows[0] || []
+        headerRow.forEach((col, idx) => {
+          const norm = normalizeText(col)
+          if (norm.includes('fecha')) colIndices.fecha = idx
+          else if (norm.includes('tecnico') || norm.includes('informa')) colIndices.tecnico = idx
+          else if (norm.includes('maquina') || norm.includes('equipo') || norm.includes('activo')) colIndices.maquina = idx
+          else if (norm.includes('area')) colIndices.area = idx
+          else if (
+            norm.includes('comentario') ||
+            norm.includes('trabajo') ||
+            norm.includes('descripcion') ||
+            norm.includes('detalle') ||
+            norm.includes('actividad') ||
+            norm.includes('observacion') ||
+            norm.includes('mensaje')
+          ) colIndices.comentario = idx
+        })
+      }
+
+      // Fallbacks posicionales estándar (0: Fecha, 1: Técnico, 2: Máquina, 3: Área, 4: Comentario)
       if (colIndices.fecha === -1) colIndices.fecha = 0
       if (colIndices.tecnico === -1) colIndices.tecnico = 1
       if (colIndices.maquina === -1) colIndices.maquina = 2
       if (colIndices.area === -1) colIndices.area = 3
-      if (colIndices.comentario === -1) colIndices.comentario = 4
+
+      // Fallback inteligente para comentario/descripción si no coincidió por texto
+      if (colIndices.comentario === -1 || colIndices.comentario === colIndices.fecha) {
+        let bestTextCol = 4
+        for (let rIdx = headerRowIndex + 1; rIdx < Math.min(headerRowIndex + 10, rows.length); rIdx++) {
+          const sampleRow = rows[rIdx] || []
+          sampleRow.forEach((val, idx) => {
+            if (idx !== colIndices.fecha && idx !== colIndices.tecnico && idx !== colIndices.maquina && idx !== colIndices.area) {
+              const strVal = String(val || '').trim()
+              if (strVal.length > 12 && isNaN(strVal)) {
+                bestTextCol = idx
+              }
+            }
+          })
+        }
+        colIndices.comentario = bestTextCol
+      }
+
+      // Salvaguarda final: la descripción nunca puede apuntar a la misma columna de fecha
+      if (colIndices.comentario === colIndices.fecha) {
+        for (let idx = 0; idx < 10; idx++) {
+          if (idx !== colIndices.fecha && idx !== colIndices.tecnico && idx !== colIndices.maquina && idx !== colIndices.area) {
+            colIndices.comentario = idx
+            break
+          }
+        }
+      }
+
+      const startDataRow = headerRowIndex + 1
 
       // Aplanar activos oficiales desde la jerarquía aprobada
       const canonicalTreeAssets = []
@@ -1706,7 +1811,7 @@ function App() {
       const seenHashes = new Set()
       const machinesMap = new Map()
 
-      for (let i = 1; i < rows.length; i++) {
+      for (let i = startDataRow; i < rows.length; i++) {
         const row = rows[i]
         if (!row || row.length === 0 || row.every((c) => c === undefined || c === null || c === '')) {
           continue
