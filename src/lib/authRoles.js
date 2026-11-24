@@ -198,7 +198,7 @@ export function isAreaMatching(targetText, allowedArea) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
-  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general') return true
+  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general' || allowed === '') return true
   if (!targetText) return false
   const target = String(targetText)
     .toLowerCase()
@@ -225,21 +225,23 @@ export function isAreaMatching(targetText, allowedArea) {
     return (
       target.includes('jjv') ||
       target.includes('produccion') ||
-      target.includes('linea 1') ||
-      target.includes('linea 2') ||
-      target.includes('linea 3') ||
-      target.includes('linea 4') ||
-      target.includes('linea 5') ||
-      target.includes('linea 6') ||
-      target.includes('linea 7') ||
-      target.includes('linea 8') ||
-      target.includes('linea 9') ||
+      target.includes('linea') ||
       target.includes('cloro') ||
-      target.includes('tratamiento de agua')
+      target.includes('tratamiento de agua') ||
+      target.includes('envolvedora') ||
+      target.includes('desmineralizador')
     )
   }
 
-  return target.includes(allowed)
+  if (allowed.includes('bodega')) {
+    return target.includes('bodega') || target.includes('almacen') || target.includes('pallets') || target.includes('envolvedora')
+  }
+
+  if (allowed.includes('servicio') || allowed.includes('general')) {
+    return target.includes('servicio') || target.includes('general') || target.includes('taller') || target.includes('compresor')
+  }
+
+  return target.includes(allowed) || allowed.includes(target)
 }
 
 /**
@@ -248,11 +250,16 @@ export function isAreaMatching(targetText, allowedArea) {
 export function isOtInAllowedArea(ot, allowedArea, equiposList = []) {
   if (!allowedArea) return true
   const allowed = String(allowedArea).toLowerCase().trim()
-  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general') return true
+  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general' || allowed === '') return true
   if (!ot) return false
   if (ot.area && isAreaMatching(ot.area, allowedArea)) return true
   if (ot.solicitante_area && isAreaMatching(ot.solicitante_area, allowedArea)) return true
   if (ot.ubicacion && isAreaMatching(ot.ubicacion, allowedArea)) return true
+  // Verificar equipo ya hidratado en el objeto OT
+  if (ot.equipo && (isAreaMatching(ot.equipo.area, allowedArea) || isAreaMatching(ot.equipo.nombre, allowedArea))) {
+    return true
+  }
+  // Verificar equipo por ID en el catálogo
   if (ot.equipo_id && Array.isArray(equiposList) && equiposList.length > 0) {
     const eq = equiposList.find((e) => e.id === ot.equipo_id)
     if (eq && (isAreaMatching(eq.area, allowedArea) || isAreaMatching(eq.nombre, allowedArea))) {

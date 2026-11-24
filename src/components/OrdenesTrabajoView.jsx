@@ -77,7 +77,11 @@ export default function OrdenesTrabajoView({
   onInventarioChange = () => {},
   session = null,
   isAdmin = false,
+  storageMode = 'supabase',
+  realtimeStatus = 'connected',
   initialLoading = false,
+  backgroundRefreshing = false,
+  onRefresh = () => {},
   onNavigateToDashboard = () => {}
 }) {
   const userRole = getUserRole(session?.user)
@@ -99,6 +103,7 @@ export default function OrdenesTrabajoView({
 
   // Filtros del tablero Kanban
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterArea, setFilterArea] = useState('')
   const [filterEquipoId, setFilterEquipoId] = useState('')
   const [filterTecnico, setFilterTecnico] = useState('')
   const [filterOrigen, setFilterOrigen] = useState('')
@@ -244,19 +249,45 @@ export default function OrdenesTrabajoView({
     return getUserAllowedArea(session?.user)
   }, [session?.user])
 
-  // Filtrado estricto por área asignada (Plásticos, Producción JJV, etc.)
-  const scopedOrdenesList = useMemo(() => {
-    if (!userAllowedArea || userAllowedArea.toLowerCase() === 'mantenimiento') return ordenesList
-    return ordenesList.filter((ot) => isOtInAllowedArea(ot, userAllowedArea, equiposList))
-  }, [ordenesList, userAllowedArea, equiposList])
+  // Inicializar filtro de área según área sugerida o asignada al usuario
+  useEffect(() => {
+    if (userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento') {
+      setFilterArea(userAllowedArea)
+    }
+  }, [userAllowedArea])
 
-  // Lista de equipos visibles acotados por área del usuario
+  // Catálogo dinámico de áreas disponibles para filtrado
+  const areasCatalogo = useMemo(() => {
+    const set = new Set()
+    set.add('Plásticos')
+    set.add('Plásticos / Extrusión')
+    set.add('Plásticos / Inyección')
+    set.add('Soplado')
+    set.add('Producción / JJV')
+    set.add('Bodega Tradicional')
+    set.add('Servicios Generales')
+
+    if (Array.isArray(equiposList)) {
+      equiposList.forEach((eq) => {
+        if (eq.area) set.add(eq.area.trim())
+      })
+    }
+    if (Array.isArray(ordenesList)) {
+      ordenesList.forEach((ot) => {
+        if (ot.area) set.add(ot.area.trim())
+        if (ot.solicitante_area) set.add(ot.solicitante_area.trim())
+      })
+    }
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'))
+  }, [equiposList, ordenesList])
+
+  // Lista de equipos visibles acotados por área seleccionada en el filtro
   const equiposVisibles = useMemo(() => {
-    if (!userAllowedArea || userAllowedArea.toLowerCase() === 'mantenimiento') return equiposList
+    if (!filterArea) return equiposList
     return equiposList.filter(
-      (eq) => isAreaMatching(eq.area, userAllowedArea) || isAreaMatching(eq.nombre, userAllowedArea)
+      (eq) => isAreaMatching(eq.area, filterArea) || isAreaMatching(eq.nombre, filterArea)
     )
-  }, [equiposList, userAllowedArea])
+  }, [equiposList, filterArea])
 
   // Agrupación de equipos por área para selectores estructurados
   const groupedEquipos = useMemo(() => {
@@ -278,9 +309,10 @@ export default function OrdenesTrabajoView({
     return TECNICOS_BASE.map((t) => t.nombre).sort((a, b) => a.localeCompare(b, 'es'))
   }, [])
 
-  // Filtrado de OTs en el tablero
+  // Filtrado de OTs en el tablero Kanban
   const filteredOrdenes = useMemo(() => {
-    return scopedOrdenesList.filter((ot) => {
+    return ordenesList.filter((ot) => {
+      if (filterArea && !isOtInAllowedArea(ot, filterArea, equiposList)) return false
       if (filterEquipoId && ot.equipo_id !== filterEquipoId) return false
       if (filterOrigen && ot.origen !== filterOrigen) return false
       if (filterTecnico) {
@@ -310,7 +342,7 @@ export default function OrdenesTrabajoView({
       }
       return true
     })
-  }, [scopedOrdenesList, filterEquipoId, filterOrigen, filterTecnico, searchQuery, equiposList])
+  }, [ordenesList, filterArea, filterEquipoId, filterOrigen, filterTecnico, searchQuery, equiposList])
 
   // Agrupación directa por estado
   const columnsMap = useMemo(() => {
@@ -331,7 +363,7 @@ export default function OrdenesTrabajoView({
     }
   }, [filteredOrdenes])
 
-  // Indicadores KPI superiores
+  // Indicadores KPI superiores calculados en vivo según el alcance de área
   const liveCounts = useMemo(() => {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
@@ -342,7 +374,12 @@ export default function OrdenesTrabajoView({
     let finalizadasTotal = 0
     let finalizadasMesActual = 0
 
-    scopedOrdenesList.forEach((ot) => {
+    // Si hay un área filtrada, calcular sobre dicha área; de lo contrario, sobre toda la planta
+    const baseList = filterArea
+      ? ordenesList.filter((ot) => isOtInAllowedArea(ot, filterArea, equiposList))
+      : ordenesList
+
+    baseList.forEach((ot) => {
       if (ot.estado === 'Pendiente') pendientes++
       else if (ot.estado === 'En curso') enCurso++
       else if (ot.estado === 'Finalizada') {
@@ -357,7 +394,7 @@ export default function OrdenesTrabajoView({
     })
 
     return { pendientes, enCurso, finalizadasTotal, finalizadasMesActual }
-  }, [scopedOrdenesList])
+  }, [ordenesList, filterArea, equiposList])
 
   // Ejecución de cambio de estado con Optimistic UI y reversión automática ante error
   const executeStatusChangeWithOptimisticUi = async (ot, newStatus, extraPayload = {}) => {
@@ -1105,7 +1142,7 @@ export default function OrdenesTrabajoView({
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
-          {ot.estado === 'Pendiente' && (
+          {canEditOtStatus && ot.estado === 'Pendiente' && (
             <button
               type="button"
               className="ot-card-btn ot-card-btn-iniciar"
@@ -1117,7 +1154,7 @@ export default function OrdenesTrabajoView({
             </button>
           )}
 
-          {ot.estado === 'En curso' && (
+          {canEditOtStatus && ot.estado === 'En curso' && (
             <button
               type="button"
               className="ot-card-btn ot-card-btn-finalizar"
@@ -1129,7 +1166,7 @@ export default function OrdenesTrabajoView({
             </button>
           )}
 
-          {ot.estado === 'Finalizada' && (
+          {canEditOtStatus && ot.estado === 'Finalizada' && (
             <button
               type="button"
               className="ot-card-btn ot-card-btn-reabrir"
@@ -1147,7 +1184,7 @@ export default function OrdenesTrabajoView({
             data-testid={`btn-ficha-${codigo}`}
             onClick={() => setSelectedOtId(ot.id)}
           >
-            Ver OT
+            {canEditOtStatus ? 'Ver OT' : 'Ver detalle'}
           </button>
 
           {isUserAdmin && (
@@ -1171,6 +1208,37 @@ export default function OrdenesTrabajoView({
     )
   }
 
+  // Renderizado a prueba de fallos para garantizar que ninguna tarjeta dañada rompa el Kanban
+  const safeRenderOtCard = (ot) => {
+    try {
+      return renderOtCard(ot)
+    } catch (err) {
+      console.error(`Error al renderizar tarjeta OT ${ot?.id}:`, err)
+      const cod = formatCodigoOt(ot)
+      return (
+        <article key={ot?.id || Math.random()} className="ot-kanban-card ot-card-error">
+          <div className="ot-card-header-row">
+            <span className="ot-card-number">{cod}</span>
+            <span className="ot-status-badge ot-badge-pendiente">{ot?.estado || 'Revisar'}</span>
+          </div>
+          <div className="ot-card-asset-info">
+            <h4 className="ot-card-equipo">{ot?.ubicacion || 'Equipo'}</h4>
+          </div>
+          <p className="ot-card-trabajo">{ot?.trabajo || 'Descripción de trabajo'}</p>
+          <div className="ot-card-actions-row">
+            <button
+              type="button"
+              className="ot-card-btn ot-card-btn-ver"
+              onClick={() => setSelectedOtId(ot?.id)}
+            >
+              Ver detalle
+            </button>
+          </div>
+        </article>
+      )
+    }
+  }
+
   return (
     <div className="ot-module-wrapper">
       {/* 1. CABECERA ESTABLE SIN SPINNER DE PARPADEO (#3 y #5) */}
@@ -1181,7 +1249,12 @@ export default function OrdenesTrabajoView({
             Gestión y seguimiento de trabajos de mantenimiento
             {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' && (
               <span className="ot-user-area-badge" style={{ marginLeft: '8px', color: '#38bdf8', fontWeight: 600 }}>
-                • Área: {userAllowedArea}
+                • Área sugerida: {userAllowedArea}
+              </span>
+            )}
+            {backgroundRefreshing && (
+              <span style={{ marginLeft: '8px', color: '#94a3b8', fontSize: '0.8rem' }}>
+                (Sincronizando...)
               </span>
             )}
           </p>
@@ -1278,7 +1351,12 @@ export default function OrdenesTrabajoView({
           <span className="ot-kpi-label">Finalizadas</span>
         </div>
 
-        <div className="ot-kpi-card kpi-card-cerradas-mes">
+        <div className="ot-kpi-card kpi-card-cerradas-mes"
+          onClick={() => setMobileActiveTab('Finalizada')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setMobileActiveTab('Finalizada')}
+        >
           <span className="ot-kpi-number" data-testid="metric-finalizadas-mes-count">
             {liveCounts.finalizadasMesActual}
           </span>
@@ -1298,6 +1376,26 @@ export default function OrdenesTrabajoView({
             aria-label="Buscar OT"
           />
         </div>
+
+        <select
+          className="ot-filter-select-item"
+          value={filterArea}
+          onChange={(e) => {
+            setFilterArea(e.target.value)
+            setFilterEquipoId('')
+          }}
+          aria-label="Área"
+        >
+          <option value="">Todas las áreas ({ordenesList.length})</option>
+          {areasCatalogo.map((ar) => {
+            const count = ordenesList.filter((ot) => isOtInAllowedArea(ot, ar, equiposList)).length
+            return (
+              <option key={ar} value={ar}>
+                {ar} {count > 0 ? `(${count})` : '(0)'}
+              </option>
+            )
+          })}
+        </select>
 
         <select
           className="ot-filter-select-item"
@@ -1346,11 +1444,12 @@ export default function OrdenesTrabajoView({
           className="ot-filter-clear-btn"
           onClick={() => {
             setSearchQuery('')
+            setFilterArea('')
             setFilterEquipoId('')
             setFilterTecnico('')
             setFilterOrigen('')
           }}
-          disabled={!searchQuery && !filterEquipoId && !filterTecnico && !filterOrigen}
+          disabled={!searchQuery && !filterArea && !filterEquipoId && !filterTecnico && !filterOrigen}
         >
           Limpiar
         </button>
@@ -1383,6 +1482,55 @@ export default function OrdenesTrabajoView({
           )
         })}
       </div>
+
+      {/* Aviso de error de conexión */}
+      {storageMode === 'error' && (
+        <div className="alert-error" role="alert" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem' }}>
+          <span>⚠️ Hubo un problema al conectar con el servidor de órdenes de trabajo.</span>
+          <button type="button" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem', whiteSpace: 'nowrap' }} onClick={onRefresh}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {/* Aviso de filtro activo cuando no hay resultados en la selección */}
+      {filteredOrdenes.length === 0 && (
+        <div
+          data-testid="ot-filter-empty-banner"
+          style={{
+            background: 'rgba(56, 189, 248, 0.08)',
+            border: '1px solid rgba(56, 189, 248, 0.25)',
+            borderRadius: '10px',
+            padding: '0.85rem 1.15rem',
+            marginBottom: '1.1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            fontSize: '0.88rem'
+          }}
+        >
+          <span style={{ color: '#e2e8f0' }}>
+            ℹ️ No hay órdenes registradas con los filtros seleccionados
+            {filterArea ? ` (Área: ${filterArea})` : ''}.
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', whiteSpace: 'nowrap' }}
+            onClick={() => {
+              setSearchQuery('')
+              setFilterArea('')
+              setFilterEquipoId('')
+              setFilterTecnico('')
+              setFilterOrigen('')
+            }}
+          >
+            Ver todas las órdenes de la planta ({ordenesList.length})
+          </button>
+        </div>
+      )}
 
       {/* 5. CARGA INICIAL ÚNICA O TABLERO KANBAN PRINCIPAL DE 3 COLUMNAS (#2, #6, #9, #12, #15) */}
       {initialLoading && ordenesList.length === 0 ? (
@@ -1440,9 +1588,25 @@ export default function OrdenesTrabajoView({
                   {cards.length === 0 ? (
                     <div className="ot-kanban-empty-state">
                       <p>{meta.emptyText}</p>
+                      {(filterArea || filterEquipoId || filterTecnico || filterOrigen || searchQuery) && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ marginTop: '0.55rem', fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                          onClick={() => {
+                            setSearchQuery('')
+                            setFilterArea('')
+                            setFilterEquipoId('')
+                            setFilterTecnico('')
+                            setFilterOrigen('')
+                          }}
+                        >
+                          Limpiar filtros
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    cards.map((ot) => renderOtCard(ot))
+                    cards.map((ot) => safeRenderOtCard(ot))
                   )}
                 </div>
               </div>
