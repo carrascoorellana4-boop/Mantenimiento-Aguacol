@@ -3020,7 +3020,7 @@ function App() {
                       onClick={() => setActiveView('ordenes-trabajo')}
                     >
                       <span className="nav-item-icon"><Icon n="list" /></span>
-                      <span>Órdenes de Trabajo {userAllowedArea ? `· ${userAllowedArea}` : ''}</span>
+                      <span>Órdenes de Trabajo {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' ? `· ${userAllowedArea}` : ''}</span>
                     </button>
                   </li>
                 )}
@@ -3291,12 +3291,12 @@ function App() {
                         <span className="home-card-icon"><Icon n="tools" /></span>
                       </div>
                       <span className="home-card-badge badge-dev">
-                        {userAllowedArea ? `Área ${userAllowedArea}` : 'En desarrollo'}
+                        {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' ? `Área ${userAllowedArea}` : 'En desarrollo'}
                       </span>
                     </div>
                     <div className="home-card-body">
                       <h3 className="home-card-title">
-                        Órdenes de Trabajo {userAllowedArea ? `(${userAllowedArea})` : ''}
+                        Órdenes de Trabajo {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' ? `(${userAllowedArea})` : ''}
                       </h3>
                       <p className="home-card-desc">
                         Tablero Kanban móvil y desktop sincronizado con ficha de OT, control de estados en tiempo real y auditoría.

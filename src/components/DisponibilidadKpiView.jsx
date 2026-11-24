@@ -443,7 +443,7 @@ export default function DisponibilidadKpiView({ session = null, _session, isAdmi
 
         <p className="disp-subtitle">
           Consolidación de horas disponibles y horas en mantención por activo según planilla oficial de producción.
-          {userAllowedArea && (
+          {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' && (
             <span style={{ marginLeft: '8px', color: '#38bdf8', fontWeight: 600 }}>
               • Área asignada: {userAllowedArea}
             </span>

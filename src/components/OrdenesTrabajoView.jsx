@@ -246,13 +246,13 @@ export default function OrdenesTrabajoView({
 
   // Filtrado estricto por área asignada (Plásticos, Producción JJV, etc.)
   const scopedOrdenesList = useMemo(() => {
-    if (!userAllowedArea) return ordenesList
+    if (!userAllowedArea || userAllowedArea.toLowerCase() === 'mantenimiento') return ordenesList
     return ordenesList.filter((ot) => isOtInAllowedArea(ot, userAllowedArea, equiposList))
   }, [ordenesList, userAllowedArea, equiposList])
 
   // Lista de equipos visibles acotados por área del usuario
   const equiposVisibles = useMemo(() => {
-    if (!userAllowedArea) return equiposList
+    if (!userAllowedArea || userAllowedArea.toLowerCase() === 'mantenimiento') return equiposList
     return equiposList.filter(
       (eq) => isAreaMatching(eq.area, userAllowedArea) || isAreaMatching(eq.nombre, userAllowedArea)
     )
@@ -1179,7 +1179,7 @@ export default function OrdenesTrabajoView({
           <h1 className="ot-clean-title">Órdenes de Trabajo</h1>
           <p className="ot-clean-subtitle">
             Gestión y seguimiento de trabajos de mantenimiento
-            {userAllowedArea && (
+            {userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento' && (
               <span className="ot-user-area-badge" style={{ marginLeft: '8px', color: '#38bdf8', fontWeight: 600 }}>
                 • Área: {userAllowedArea}
               </span>

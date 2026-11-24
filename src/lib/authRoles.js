@@ -136,7 +136,8 @@ export function isRestrictedRole(role) {
 }
 
 /**
- * Obtiene el área asignada al usuario o rol
+ * Obtiene el área asignada al usuario o rol para restricción de alcance.
+ * Retorna null si el rol/usuario NO tiene restricción de área (ej. admin, tecnico, viewer general).
  */
 export function getUserAllowedArea(roleOrUser) {
   if (!roleOrUser) return null
@@ -145,12 +146,17 @@ export function getUserAllowedArea(roleOrUser) {
   if (typeof roleOrUser === 'object') {
     user = roleOrUser
     role = getUserRole(user)
-    if (user.user_metadata?.area) return user.user_metadata.area
+    // Técnicos de mantención y administradores atienden toda la planta: sin restricción de área
+    if (role === 'tecnico' || role === 'admin') return null
+    if (user.user_metadata?.area && user.user_metadata.area !== 'Mantenimiento') {
+      return user.user_metadata.area
+    }
   } else {
     role = roleOrUser
   }
 
-  if (role === 'tecnico') return 'Mantenimiento'
+  // Técnicos de mantención y administradores atienden toda la planta
+  if (role === 'tecnico' || role === 'admin') return null
   if (role === 'visor_ot_plasticos' || role === 'supervisor_plasticos') return 'Plásticos'
   if (role === 'visor_ot_jjv') return 'Producción JJV'
   if (role === 'operador_extrusion') return 'Extrusión'
@@ -187,13 +193,14 @@ export function getUserAllowedViews(user) {
  */
 export function isAreaMatching(targetText, allowedArea) {
   if (!allowedArea) return true
-  if (!targetText) return false
-  const target = String(targetText)
+  const allowed = String(allowedArea)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
-  const allowed = String(allowedArea)
+  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general') return true
+  if (!targetText) return false
+  const target = String(targetText)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -240,6 +247,8 @@ export function isAreaMatching(targetText, allowedArea) {
  */
 export function isOtInAllowedArea(ot, allowedArea, equiposList = []) {
   if (!allowedArea) return true
+  const allowed = String(allowedArea).toLowerCase().trim()
+  if (allowed === 'mantenimiento' || allowed === 'todas' || allowed === 'general') return true
   if (!ot) return false
   if (ot.area && isAreaMatching(ot.area, allowedArea)) return true
   if (ot.solicitante_area && isAreaMatching(ot.solicitante_area, allowedArea)) return true
@@ -268,6 +277,8 @@ export function getUserDisplayInfo(user) {
     else if (userPart === 'EGALAZ') name = 'Ernesto Galaz'
     else if (userPart === 'DOTEIZA') name = 'Daniel Oteiza'
     else if (userPart === 'BOTEIZA') name = 'Bastián Oteiza'
+    else if (userPart === 'VMUNOZ') name = 'Víctor Muñoz'
+    else if (userPart === 'WORELLANA') name = 'Willi Orellana'
     else if (userPart === 'OPEXTRUSION') name = 'Operador Extrusión'
     else if (userPart === 'OPINYECCION') name = 'Operador Inyección'
     else if (userPart === 'OPSOPLADO') name = 'Operador Soplado'
@@ -276,6 +287,7 @@ export function getUserDisplayInfo(user) {
 
   let badge = 'Visualizador'
   if (role === 'admin') badge = 'Administrador'
+  else if (role === 'tecnico') badge = 'Técnico de Mantención'
   else if (role in ROLES_ESPECIALES) badge = ROLES_ESPECIALES[role].label
   else if (role in ROLES_OPERADOR) badge = ROLES_OPERADOR[role].label
   else if (role === 'operador') badge = 'Operador Planta'
