@@ -249,12 +249,30 @@ export default function OrdenesTrabajoView({
     return getUserAllowedArea(session?.user)
   }, [session?.user])
 
-  // Inicializar filtro de área según área sugerida o asignada al usuario
+  // Asegurar carga automática si la lista de órdenes llega vacía al montar o refrescar
   useEffect(() => {
-    if (userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento') {
+    if (!ordenesList || ordenesList.length === 0) {
+      onRefresh()
+    }
+  }, [ordenesList?.length, onRefresh])
+
+  const hasUserSelectedAreaRef = useRef(false)
+
+  // Inicializar filtro de área según área sugerida o asignada al usuario respetando selecciones manuales
+  useEffect(() => {
+    if (!hasUserSelectedAreaRef.current && userAllowedArea && userAllowedArea.toLowerCase() !== 'mantenimiento') {
       setFilterArea(userAllowedArea)
     }
   }, [userAllowedArea])
+
+  const handleClearAllFilters = () => {
+    hasUserSelectedAreaRef.current = true
+    setSearchQuery('')
+    setFilterArea('')
+    setFilterEquipoId('')
+    setFilterTecnico('')
+    setFilterOrigen('')
+  }
 
   // Catálogo dinámico de áreas disponibles para filtrado
   const areasCatalogo = useMemo(() => {
@@ -1381,6 +1399,7 @@ export default function OrdenesTrabajoView({
           className="ot-filter-select-item"
           value={filterArea}
           onChange={(e) => {
+            hasUserSelectedAreaRef.current = true
             setFilterArea(e.target.value)
             setFilterEquipoId('')
           }}
@@ -1442,13 +1461,7 @@ export default function OrdenesTrabajoView({
         <button
           type="button"
           className="ot-filter-clear-btn"
-          onClick={() => {
-            setSearchQuery('')
-            setFilterArea('')
-            setFilterEquipoId('')
-            setFilterTecnico('')
-            setFilterOrigen('')
-          }}
+          onClick={handleClearAllFilters}
           disabled={!searchQuery && !filterArea && !filterEquipoId && !filterTecnico && !filterOrigen}
         >
           Limpiar
@@ -1519,13 +1532,7 @@ export default function OrdenesTrabajoView({
             type="button"
             className="btn-secondary"
             style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', whiteSpace: 'nowrap' }}
-            onClick={() => {
-              setSearchQuery('')
-              setFilterArea('')
-              setFilterEquipoId('')
-              setFilterTecnico('')
-              setFilterOrigen('')
-            }}
+            onClick={handleClearAllFilters}
           >
             Ver todas las órdenes de la planta ({ordenesList.length})
           </button>
@@ -1593,13 +1600,7 @@ export default function OrdenesTrabajoView({
                           type="button"
                           className="btn-secondary"
                           style={{ marginTop: '0.55rem', fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
-                          onClick={() => {
-                            setSearchQuery('')
-                            setFilterArea('')
-                            setFilterEquipoId('')
-                            setFilterTecnico('')
-                            setFilterOrigen('')
-                          }}
+                          onClick={handleClearAllFilters}
                         >
                           Limpiar filtros
                         </button>

@@ -1,4 +1,4 @@
-import { TECNICOS_BASE } from '../config/tecnicos'
+import { TECNICOS_BASE } from '../config/tecnicos.js'
 
 /**
  * Normaliza el campo técnico de bitácora permitiendo separar tareas

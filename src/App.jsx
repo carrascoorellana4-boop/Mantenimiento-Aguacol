@@ -926,14 +926,18 @@ function App() {
     }
   }, [activeView, session])
 
-  // Cargar metadatos globales al iniciar sesión
+  // Cargar metadatos globales y órdenes de trabajo al cambiar o autenticar sesión
   useEffect(() => {
     if (session) {
+      if (equiposListRef.current.length === 0) {
+        fetchEquipos()
+      }
+      fetchOrdenesTrabajoList({ silent: false })
       fetchResolucionEquipos()
       fetchArbolActivosFromSupabase()
       fetchPendientesValidacion()
     }
-  }, [session])
+  }, [session, fetchOrdenesTrabajoList])
 
   // Cargar datos de la ficha al cambiar el activo seleccionado
   useEffect(() => {
@@ -952,7 +956,10 @@ function App() {
       return
     }
     // Permitir cualquier usuario directo o correo sin exigir @aguacol.cl
-    const usuario = loginEmail.trim().toLowerCase()
+    let usuario = loginEmail.trim().toLowerCase()
+    if (usuario === 'lizette' || usuario === 'lizettedonoso' || usuario === 'lizette.donoso') {
+      usuario = 'ldonoso'
+    }
     const correo = usuario.includes('@') ? usuario : `${usuario}@aguacol.cl`
 
     setLoginLoading(true)
@@ -973,6 +980,11 @@ function App() {
       } else {
         setLoginEmail('')
         setLoginPassword('')
+        hasLoadedInitialOtRef.current = false
+        if (equiposListRef.current.length === 0) {
+          fetchEquipos()
+        }
+        fetchOrdenesTrabajoList({ silent: false })
         const targetRole = getUserRole({ email: correo })
         if (isOperatorRole(targetRole)) {
           setActiveView('mantenimiento-preventivo')

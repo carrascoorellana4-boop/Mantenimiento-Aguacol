@@ -93,7 +93,7 @@ export function getUserRole(user) {
   if (strId.includes('worellana')) {
     return 'tecnico'
   }
-  if (strId.includes('ldonoso')) {
+  if (strId.includes('ldonoso') || strId.includes('lizette')) {
     return 'visor_ot_plasticos'
   }
   if (strId.includes('egalaz')) {
@@ -206,6 +206,21 @@ export function isAreaMatching(targetText, allowedArea) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
 
+  // Si el usuario seleccionó un sub-proceso específico de Plásticos
+  if (allowed.includes('extrusion')) {
+    return target.includes('extrusion') || target.includes('extrusora')
+  }
+  if (allowed.includes('inyeccion')) {
+    return target.includes('inyeccion') || target.includes('inyectora') || target.includes('borche')
+  }
+  if (allowed.includes('refrigeracion')) {
+    return target.includes('refrigeracion') || target.includes('chiller')
+  }
+  if (allowed.includes('soplado')) {
+    return target.includes('soplado') || target.includes('sopladora')
+  }
+
+  // Si se busca el área macro "Plásticos": cubre todos los sub-procesos
   if (allowed.includes('plastico')) {
     return (
       target.includes('plastico') ||
@@ -280,7 +295,7 @@ export function getUserDisplayInfo(user) {
   let name = meta.nombre || ''
   if (!name) {
     const userPart = (user.email || '').split('@')[0].toUpperCase()
-    if (userPart === 'LDONOSO') name = 'Lizette Donoso'
+    if (userPart === 'LDONOSO' || userPart === 'LIZETTE') name = 'Lizette Donoso'
     else if (userPart === 'EGALAZ') name = 'Ernesto Galaz'
     else if (userPart === 'DOTEIZA') name = 'Daniel Oteiza'
     else if (userPart === 'BOTEIZA') name = 'Bastián Oteiza'
