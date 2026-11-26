@@ -220,14 +220,13 @@ export function isAreaMatching(targetText, allowedArea) {
     return target.includes('soplado') || target.includes('sopladora')
   }
 
-  // Si se busca el área macro "Plásticos": cubre todos los sub-procesos
+  // Si se busca el área macro "Plásticos": cubre los sub-procesos de producción plástica (Extrusión, Inyección, Soplado)
   if (allowed.includes('plastico')) {
     return (
       target.includes('plastico') ||
       target.includes('extrusion') ||
       target.includes('inyeccion') ||
       target.includes('soplado') ||
-      target.includes('refrigeracion') ||
       target.includes('extrusora') ||
       target.includes('inyectora') ||
       target.includes('sopladora') ||
@@ -253,7 +252,14 @@ export function isAreaMatching(targetText, allowedArea) {
   }
 
   if (allowed.includes('servicio') || allowed.includes('general')) {
-    return target.includes('servicio') || target.includes('general') || target.includes('taller') || target.includes('compresor')
+    return (
+      target.includes('servicio') ||
+      target.includes('general') ||
+      target.includes('taller') ||
+      target.includes('compresor') ||
+      target.includes('refrigeracion') ||
+      target.includes('chiller')
+    )
   }
 
   return target.includes(allowed) || allowed.includes(target)
