@@ -709,16 +709,20 @@ export async function fetchOtsConTiempoDetencion(equiposList = []) {
     }
 
     return (data || [])
+      .filter((ot) => {
+        // REGLA ESTRICTA: Solo órdenes cerradas (Finalizadas) donde la condición de la línea indique que se perdió tiempo ("Línea detenida").
+        // Si la línea se mantuvo produciendo, NUNCA se imputa tiempo perdido ni se solicita validación a KPI.
+        const esCerrada = String(ot.estado || '').toLowerCase().trim() === 'finalizada'
+        const condicion = String(ot.condicion_linea || '').trim().toLowerCase()
+        const esLineaDetenida = condicion === 'línea detenida' || condicion === 'linea detenida'
+        const tieneMinutos = Number(ot.tiempo_detencion_minutos) > 0 || (ot.kpi_validado && Number(ot.kpi_horas_aprobadas) > 0)
+        return esCerrada && esLineaDetenida && tieneMinutos
+      })
       .map((ot) => {
+        // Solo considerar los minutos imputados explícitamente cuando la línea estuvo detenida
         let minutos = Number(ot.tiempo_detencion_minutos) || 0
-        if (!minutos && ot.fecha_hora_inicio_trabajo && ot.fecha_hora_fin_trabajo) {
-          try {
-            const ini = new Date(ot.fecha_hora_inicio_trabajo).getTime()
-            const fin = new Date(ot.fecha_hora_fin_trabajo).getTime()
-            if (!isNaN(ini) && !isNaN(fin) && fin > ini) {
-              minutos = Math.round((fin - ini) / (1000 * 60))
-            }
-          } catch {}
+        if (!minutos && ot.kpi_validado && ot.kpi_horas_aprobadas) {
+          minutos = Math.round(Number(ot.kpi_horas_aprobadas) * 60)
         }
 
         const horasDefecto = minutos > 0 ? Number((minutos / 60).toFixed(2)) : 0
@@ -753,12 +757,6 @@ export async function fetchOtsConTiempoDetencion(equiposList = []) {
           padre_codigo_display: padreCodigoDisplay,
           area_display: area,
         }
-      })
-      .filter((ot) => {
-        // REGLA ESTRICTA: Solo órdenes cerradas (Finalizadas) y con tiempo de detención real mayor a 0
-        const esCerrada = String(ot.estado || '').toLowerCase().trim() === 'finalizada'
-        const minutosReales = Number(ot.minutos_calculados) || 0
-        return esCerrada && minutosReales > 0
       })
   } catch (err) {
     console.error('Excepción al consultar OTs con tiempo de detención:', err)
