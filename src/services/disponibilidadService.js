@@ -595,8 +595,22 @@ export function consolidarKpisDisponibilidad(registros = [], equiposList = []) {
     dispGlobal = Math.max(0, Math.min(100, Number(((totalDisp / denomGlobal) * 100).toFixed(2))))
   }
 
-  // Consolidado por equipo
+  // Consolidado por equipo (exclusivo para máquinas productivas oficiales)
   const porEquipo = Array.from(porEquipoMap.values())
+    .filter((eq) => {
+      const codNorm = (eq.codigo || '').toUpperCase()
+      const nomNorm = (eq.nombre || '').toLowerCase()
+      const areaNorm = (eq.area || '').toLowerCase()
+      if (
+        codNorm.includes('REF-SALA') ||
+        nomNorm.includes('sala de refrigeracion') ||
+        nomNorm.includes('bomba de refrigeracion') ||
+        areaNorm.includes('servicio')
+      ) {
+        return false
+      }
+      return true
+    })
     .map((eq) => {
       let pct = 0
       const denomEq = eq.horas_disponibles + eq.horas_mantencion
@@ -711,12 +725,15 @@ export async function fetchOtsConTiempoDetencion(equiposList = []) {
     return (data || [])
       .filter((ot) => {
         // REGLA ESTRICTA: Solo órdenes cerradas (Finalizadas) donde la condición de la línea indique que se perdió tiempo ("Línea detenida").
-        // Si la línea se mantuvo produciendo, NUNCA se imputa tiempo perdido ni se solicita validación a KPI.
+        // Si la línea se mantuvo produciendo, o es un área de servicios/refrigeración, NUNCA se imputa tiempo perdido a KPI de producción.
         const esCerrada = String(ot.estado || '').toLowerCase().trim() === 'finalizada'
         const condicion = String(ot.condicion_linea || '').trim().toLowerCase()
         const esLineaDetenida = condicion === 'línea detenida' || condicion === 'linea detenida'
         const tieneMinutos = Number(ot.tiempo_detencion_minutos) > 0 || (ot.kpi_validado && Number(ot.kpi_horas_aprobadas) > 0)
-        return esCerrada && esLineaDetenida && tieneMinutos
+        const areaStr = String(ot.area || ot.equipo?.area || '').toLowerCase()
+        const nombreStr = String(ot.equipo?.nombre || ot.equipo_solicitado || '').toLowerCase()
+        const esServicios = areaStr.includes('servicio') || areaStr.includes('refrigeracion') || nombreStr.includes('refrigeracion')
+        return esCerrada && esLineaDetenida && tieneMinutos && !esServicios
       })
       .map((ot) => {
         // Solo considerar los minutos imputados explícitamente cuando la línea estuvo detenida
