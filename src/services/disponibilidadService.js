@@ -603,8 +603,11 @@ export function consolidarKpisDisponibilidad(registros = [], equiposList = []) {
       const areaNorm = (eq.area || '').toLowerCase()
       if (
         codNorm.includes('REF-SALA') ||
+        codNorm.includes('EMB') ||
         nomNorm.includes('sala de refrigeracion') ||
         nomNorm.includes('bomba de refrigeracion') ||
+        nomNorm.includes('embolsadora') ||
+        nomNorm.includes('embandejadora') ||
         areaNorm.includes('servicio')
       ) {
         return false
@@ -732,8 +735,15 @@ export async function fetchOtsConTiempoDetencion(equiposList = []) {
         const tieneMinutos = Number(ot.tiempo_detencion_minutos) > 0 || (ot.kpi_validado && Number(ot.kpi_horas_aprobadas) > 0)
         const areaStr = String(ot.area || ot.equipo?.area || '').toLowerCase()
         const nombreStr = String(ot.equipo?.nombre || ot.equipo_solicitado || '').toLowerCase()
-        const esServicios = areaStr.includes('servicio') || areaStr.includes('refrigeracion') || nombreStr.includes('refrigeracion')
-        return esCerrada && esLineaDetenida && tieneMinutos && !esServicios
+        const codStr = String(ot.equipo?.codigo || '').toUpperCase()
+        const esExcluido =
+          areaStr.includes('servicio') ||
+          areaStr.includes('refrigeracion') ||
+          nombreStr.includes('refrigeracion') ||
+          nombreStr.includes('embolsadora') ||
+          nombreStr.includes('embandejadora') ||
+          codStr.includes('EMB')
+        return esCerrada && esLineaDetenida && tieneMinutos && !esExcluido
       })
       .map((ot) => {
         // Solo considerar los minutos imputados explícitamente cuando la línea estuvo detenida
