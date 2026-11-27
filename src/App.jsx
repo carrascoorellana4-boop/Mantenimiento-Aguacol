@@ -347,7 +347,7 @@ const checkIsSolicitudPath = () => {
 }
 
 function App() {
-  const [activeView, setActiveView] = useState('home')
+  const [activeView, setActiveView] = useState(() => new URLSearchParams(window.location.search).has('ot') ? 'ordenes-trabajo' : 'home')
   const [isSolicitudRoute, setIsSolicitudRoute] = useState(() => checkIsSolicitudPath())
 
   useEffect(() => {
