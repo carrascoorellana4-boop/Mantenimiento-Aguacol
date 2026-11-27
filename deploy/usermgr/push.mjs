@@ -123,6 +123,9 @@ export function pushPilotPublicKey() { return state.keys.public }
 
 export function pushPilotEnroll(userId, subscription) {
   if (!isSubscriptionValid(subscription)) throw Error('Suscripción push inválida.')
+  if (state.subscription && state.subscription.userId !== userId) {
+    throw Error('El piloto ya está registrado por otro administrador.')
+  }
   // Un único dispositivo de prueba. No pueden activarse múltiples destinatarios.
   state.subscription = {
     endpoint: subscription.endpoint, keys: subscription.keys, userId,
@@ -163,7 +166,7 @@ async function poll(serviceKey) {
       origen: 'eq.Solicitud QR',
       created_at: 'gte.' + start,
       order: 'created_at.asc',
-      limit: '200'
+      limit: '5000'
     })
     const res = await fetch(PGRST + '/orden_trabajo?' + params, {
       headers: { Authorization: 'Bearer ' + serviceKey },
