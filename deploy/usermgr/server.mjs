@@ -4,6 +4,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { startPushPilot, pushPilotStatus, pushPilotPublicKey, pushPilotEnroll, pushPilotDisable, pushPilotTest } from './push.mjs'
 
 const { JWT_SECRET, SERVICE_KEY, GOTRUE = 'http://127.0.0.1:9999', PORT = '3200', EVIDENCIAS_DIR = '/data/evidencias' } = process.env
 if (!JWT_SECRET || !SERVICE_KEY) { console.error('Faltan JWT_SECRET o SERVICE_KEY'); process.exit(1) }
@@ -367,6 +368,39 @@ http.createServer(async (req, res) => {
     const yo = verificar(tokenHeader)
     if (!yo) return send(401, { error: 'Sesión inválida o vencida.' })
 
+
+    // -------------------------------------------------------------
+    // PILOTO WEB PUSH iPHONE — SOLO ADMINISTRADOR, UN DISPOSITIVO
+    // -------------------------------------------------------------
+    if (urlPath.startsWith('/api/push/')) {
+      if (yo.role !== ADMIN) return send(403, { error: 'Solo administradores.' })
+      if (req.method === 'GET' && urlPath === '/api/push/config') {
+        return send(200, { publicKey: pushPilotPublicKey(), ...pushPilotStatus() })
+      }
+      const allowed = {
+        '/api/push/register': 'POST',
+        '/api/push/test': 'POST',
+        '/api/push/disable': 'POST'
+      }
+      if (allowed[urlPath] !== req.method) return send(405, { error: 'Método no permitido.' })
+      try {
+        if (urlPath === '/api/push/register') {
+          let raw = ''
+          for await (const chunk of req) {
+            raw += chunk
+            if (raw.length > 10000) return send(413, { error: 'Solicitud demasiado grande.' })
+          }
+          const body = JSON.parse(raw || '{}')
+          return send(200, pushPilotEnroll(yo.sub, body.subscription))
+        }
+        if (urlPath === '/api/push/test') return send(200, await pushPilotTest(yo.sub))
+        if (urlPath === '/api/push/disable') return send(200, pushPilotDisable(yo.sub))
+      } catch (err) {
+        console.warn('[push-pilot] Error:', err.message)
+        return send(400, { error: err.message })
+      }
+    }
+
     // -------------------------------------------------------------
     // 3. ENDPOINT PARA SUBIR EVIDENCIA (FOTO O VIDEO)
     // -------------------------------------------------------------
@@ -615,6 +649,9 @@ async function asegurarOperadoresBase(forzar = false) {
 
 // Ejecutar seed al arrancar el servidor
 setTimeout(asegurarOperadoresBase, 1500)
+
+// Notificaciones push del piloto: supervisión de OTs QR desde la base real.
+startPushPilot(SERVICE_KEY)
 
 // Asegurar sincronización periódica cada 60 segundos
 setInterval(() => {
