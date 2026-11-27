@@ -1,0 +1,19 @@
+{
+  "name": "Mantenimiento AGUACOL",
+  "short_name": "AGUACOL",
+  "description": "Sistema de mantenimiento industrial",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#091e3a",
+  "theme_color": "#091e3a",
+  "icons": [
+    {
+      "src": "/Mantenimiento.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}
