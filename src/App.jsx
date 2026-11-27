@@ -17,6 +17,7 @@ import UsuariosView from './components/UsuariosView'
 import MantenimientoPreventivoView from './components/MantenimientoPreventivoView'
 import DisponibilidadKpiView from './components/DisponibilidadKpiView'
 import SolicitudMantenimientoQrView from './components/SolicitudMantenimientoQrView'
+import NotificacionesIphone from './components/NotificacionesIphone'
 import {
   getUserRole,
   isOperatorRole,
@@ -3212,6 +3213,16 @@ function App() {
                 <li>
                   <button
                     type="button"
+                    className={`nav-item ${activeView === 'push-iphone' ? 'active' : ''}`}
+                    onClick={() => setActiveView('push-iphone')}
+                  >
+                    <span className="nav-item-icon"><Icon n="bell" /></span>
+                    <span>Notificaciones iPhone</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
                     className={`nav-item ${activeView === 'usuarios' ? 'active' : ''}`}
                     onClick={() => setActiveView('usuarios')}
                   >
@@ -5041,6 +5052,8 @@ function App() {
             </section>
           </>
         )}
+
+        {activeView === 'push-iphone' && isAdmin && <NotificacionesIphone session={session} />}
 
         {activeView === 'usuarios' && isAdmin && <UsuariosView session={session} />}
 
