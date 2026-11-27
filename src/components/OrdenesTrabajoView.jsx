@@ -131,6 +131,14 @@ export default function OrdenesTrabajoView({
     [ordenesList, selectedOtId]
   )
 
+  // Desde el aviso push, abrir directamente la ficha individual de la OT.
+  useEffect(() => {
+    const otId = new URLSearchParams(window.location.search).get('ot')
+    if (!otId || !ordenesList.some((o) => o.id === otId)) return
+    setSelectedOtId(otId)
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [ordenesList])
+
   // Campos editables dentro de la Ficha Individual
   const [fichaSolucion, setFichaSolucion] = useState('')
   const [fichaTrabajoPendiente, setFichaTrabajoPendiente] = useState('')
